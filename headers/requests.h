@@ -5,6 +5,7 @@
 #include <stdint.h>
 
 #define MAX_DATA 255
+#define MAX_BUFSIZE 4069
 
 #define CODEREQ_LEN 13
 #define ID_LEN 2
@@ -27,6 +28,13 @@
 #define SCOP_CHAT 14
 #define SGAMEOVER_MODE4 15
 #define SGAMEOVER_TEAMS 16
+
+#define CODEREQ_MASK 0x1FFF
+#define ID_MASK 0x6000
+#define EQ_MASK 0x8000
+
+#define MAX_WIDTH 256
+#define MAX_HEIGHT 256
 
 
 typedef enum : uint8_t {
@@ -51,20 +59,13 @@ typedef enum : uint8_t {
 } cases_t;
 
 
-typedef struct {
-	uint16_t codereq : CODEREQ_LEN;
-	uint8_t id : ID_LEN;
-	uint8_t eq : 1;
-} Header_t;
+typedef uint16_t Header_t;
 
 typedef struct {
 	Header_t header;
 } CReq_Join;
 
-typedef struct {
-	uint16_t num : CNUM_LEN;
-	action_t action : 3;
-} Message_t;
+typedef uint16_t Message_t;
 
 typedef struct {
 	Header_t header;
@@ -99,13 +100,12 @@ typedef struct {
 	unsigned char adrmdiff[16];
 } SReq_Start;
 
-// TODO: Modifier par les vraies tailles du tableau
 typedef struct {
 	Header_t header;
 	uint16_t num;
 	uint8_t hauteur;
 	uint8_t largeur;
-	cases_t cells[1][1];
+	cases_t cells[MAX_HEIGHT][MAX_WIDTH];
 } SReq_Grid;
 
 typedef struct {
@@ -118,12 +118,11 @@ typedef struct {
 	cases_t content : 8;
 } Cell;
 
-// TODO: Modifier par les vraies tailles du tableau
 typedef struct {
 	Header_t header;
 	uint16_t num;
 	uint8_t nb;
-	Cell cells[1][1];
+	Cell cells[MAX_HEIGHT][MAX_WIDTH];
 } SReq_Cell;
 
 typedef struct {
@@ -150,5 +149,21 @@ typedef struct {
 		SReq_End end; /**< game end request */
 	} req;  /**< Union representing different types of server requests */
 } SReq;
+
+typedef struct {
+	char content[MAX_BUFSIZE];
+	size_t size;
+} Buf_t;
+
+void initbuf(Buf_t *buffer);
+int appendbuf(Buf_t *buffer, void *elt, size_t elt_size);
+int copyfrombuf(Buf_t *buffer, size_t *start, size_t elt_size, void *dst);
+
+uint16_t get_codereq(Header_t header);
+uint16_t get_id(Header_t header);
+uint16_t get_eq(Header_t header);
+
+void debug_creq(CReq *client_rq);
+void debug_sreq(SReq *server_rq);
 
 #endif
