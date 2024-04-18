@@ -1,0 +1,54 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <inttypes.h>
+#include "debug.h"
+#include "client/client_requests.h"
+#include "client/input.h"
+#include "server/games_handler.h"
+
+int create_integrationrq(CReq *clientrq) {
+    uint8_t gametype = input_game_type();
+    Header_t header = (gametype | 0 << CODEREQ_LEN);
+    clientrq->type = (gametype == 1) ? CREQ_MODE4 : CREQ_TEAMS;
+    clientrq->req.join.header = header;
+    return 0;
+}
+
+int create_confrq(CReq *clientrq, game_mode_t gametype, uint8_t id_player, uint8_t id_team) {
+    uint16_t codereq = 0;
+    if(gametype == MODE4) {
+        codereq = CCONF_MODE4;
+    } else if(gametype == TEAMS) {
+        codereq = CCONF_TEAMS;
+    } else {
+        return 1;
+    }
+
+    Header_t header = (codereq | (id_player << CODEREQ_LEN) | (id_team << (CODEREQ_LEN + ID_LEN)));
+    
+    clientrq->type = codereq;
+    clientrq->req.join.header = header;
+
+    return 0;
+}
+
+int create_ongamerq(CReq *clientrq, game_mode_t game_mode, uint8_t id_player, uint8_t id_team, uint32_t num, action_t action) {
+    uint16_t codereq = 0;
+    if(game_mode == MODE4) {
+        codereq = CON_MODE4;
+    } else if(game_mode == TEAMS) {
+        codereq = CON_TEAMS;
+    } else {
+        return 1;
+    }
+
+    Header_t header = (codereq | (id_player << CODEREQ_LEN) | (id_team << (CODEREQ_LEN + ID_LEN)));
+    
+    clientrq->type = codereq;
+    clientrq->req.play.header = header;
+
+    Message_t message = (num | action << CNUM_LEN);
+    clientrq->req.play.message = message;
+    return 0;
+}
