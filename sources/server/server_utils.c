@@ -74,40 +74,6 @@ void* multicast_grid(void* args) {
     return NULL;
 }
 
-void* recv_datas(void* args) {
-    Game game = *((Game*) args);
-    GameBoard board = game.game_board;
-    int udp_port = game.port_udp;
-    int sock = socket(PF_INET6, SOCK_DGRAM, 0);
-    if(sock < 0) {
-        perror("Erreur lors de la création de la socket udp coté serveur");
-        return NULL;
-    }
-    struct sockaddr_in6 serv_addr = {0};
-    serv_addr.sin6_family = AF_INET6;
-    serv_addr.sin6_port = htons(udp_port);
-    serv_addr.sin6_addr = in6addr_any;
-
-    if(bind(sock, (struct sockadd *) &serv_addr, sizeof(serv_addr)) < 0) {
-        perror("Erreur bind recv_datas serveur");
-        return NULL;
-    }
-
-    while(1) {
-
-        SReq cell_rq = {0};
-        
-        if(recv_client_request(sock, gradr, &grid_rq)) {
-            perror("Erreur lors de la multidiffusion de la grille du jeu");
-            break;
-        }
-
-        sleep(1);
-    }
-
-    return NULL;
-}
-
 void* multicast_updates(void* args) {
     Game game = *((Game*) args);
     GameBoard board = game.game_board;

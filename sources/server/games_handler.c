@@ -233,8 +233,6 @@ void* games_supervisor_handler(void* arg) {
                 debug_board(server_games->games[i].game_board);
                 server_games->games[i].game_status = ON_GOING;
                 pthread_create(&server_games->games[i].multicast_thread, NULL, multicast_grid, (void*) &server_games->games[i]);
-                pthread_create(&server_games->games[i].recv_thread, NULL, recv_datas, (void *) &server_games->games[i]);
-                pthread_create(&server_games->games[i].updates_thread, NULL, multicast_updates, (void *) &server_games->games[i]);
             }
         }
         sleep(10);

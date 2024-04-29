@@ -97,9 +97,6 @@ int main(int argc, char** argv) {
 
         draw_board(board);
 
-        CReq ongamerq = {0};
-        create_ongamerq(&ongamerq, gametype, id_player, id_team, num++, GO_NORTH);
-        send_datagram(udp_infos->sock_udp, udp_infos->server_addr, &ongamerq);
     }
 
     endwin();
