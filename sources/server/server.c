@@ -61,7 +61,7 @@ int main(int argc, char** argv) {
             time_t current_time = time(NULL);
             for (size_t i = 0; i < clients_infos->size; ++i) {
                 Client_Infos* cli_info = get_from_array(clients_infos, i);
-                if (difftime(current_time, cli_info->last_activity) >= CLIENT_TIMEOUT) {
+                if (difftime(current_time, cli_info->last_activity) >= CLIENT_TIMEOUT && cli_info->status == CONNECTING) {
                     debug("Client %d timed out, deconnexion...", cli_info->client_tcp_sock);
                     close(cli_info->client_tcp_sock);
                     remove_client(&server_games, cli_info->game_udp_port, cli_info->client_id);
@@ -98,6 +98,7 @@ int main(int argc, char** argv) {
 
                     Client_Infos ci = {0};
                     ci.client_tcp_sock = client_tcp_socket;
+                    ci.status = CONNECTING;
                     ci.last_activity = time(NULL);
                     append_to_array(clients_infos, &ci);
 
@@ -148,6 +149,7 @@ int main(int argc, char** argv) {
                     } else if(codereq == CCONF_MODE4 || codereq == CCONF_TEAMS) {
                         debug("Le client a confirmé qu'il veut rejoindre la partie");
                         set_player_status(&server_games, client_infos->game_udp_port, client_infos->client_id, READY);
+                        client_infos->status = READY;
                     } else {
                         // TODO le tchat sinon c'est une erreur refuser le client
                     }

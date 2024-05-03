@@ -42,7 +42,7 @@
 #define MAX_HEIGHT 256
 
 
-typedef enum : uint8_t {
+typedef enum {
 	GO_NORTH=0,
 	GO_EAST=1,
 	GO_SOUTH=2,
@@ -51,7 +51,15 @@ typedef enum : uint8_t {
 	UNDO=5
 } action_t;
 
-typedef enum : uint8_t {
+typedef enum {
+    DISCONNECTED = 0,
+    CONNECTING,
+    READY,
+    PLAYING,
+    DEAD
+} player_status_t;
+
+typedef enum {
 	EMPTY=0,
 	IWALL=1,
 	DWALL=2,
@@ -170,6 +178,7 @@ typedef struct {
 	uint8_t client_id;
 	time_t last_activity;
 	uint16_t game_udp_port;
+	player_status_t status;
 } Client_Infos;
 
 void initbuf(Buf_t *buffer);
