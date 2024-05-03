@@ -3,7 +3,6 @@
 #include <unistd.h>
 #include <inttypes.h>
 #include "debug.h"
-#include "client/client_requests.h"
 #include "client/input.h"
 #include "server/games_handler.h"
 
@@ -33,7 +32,7 @@ int create_confrq(CReq *clientrq, game_mode_t gametype, uint8_t id_player, uint8
     return 0;
 }
 
-int create_ongamerq(CReq *clientrq, game_mode_t game_mode, uint8_t id_player, uint8_t id_team, uint32_t num, action_t action) {
+int create_ongamerq(CReq *clientrq, game_mode_t game_mode, uint8_t id_player, uint8_t id_team, uint16_t num, action_t action) {
     uint16_t codereq = 0;
     if(game_mode == MODE4) {
         codereq = CON_MODE4;

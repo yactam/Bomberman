@@ -38,16 +38,13 @@ typedef struct {
     int nb_players;
     int nb_ready_players;
     Player players[NB_PLAYERS];
-    pthread_t multicast_thread;
-    pthread_t updates_thread;
-    pthread_t recv_thread;
+    pthread_t game_thread;
     pthread_mutex_t game_mtx;
     pthread_cond_t game_cond;
     uint16_t port_udp;
     uint16_t port_multicast;
     unsigned char addr_mdiff[16];
     GameBoard game_board;
-    PlayerAction players_action[256];
     int multicast_sock;
     struct sockaddr_in6 gradr;
 } Game;
@@ -73,5 +70,10 @@ uint16_t generate_udpPort();
 uint16_t generate_multicastPort();
 void set_player_status(ServerGames**, uint16_t, uint8_t, player_status_t);
 void* games_supervisor_handler(void* arg);
+size_t compare_boards(GameBoard board1, GameBoard board2);
+void init_players_positions(GameBoard board, player_pos_t *player_positions);
+void process_players_actions(PlayerAction *actions, size_t nb_actions, player_pos_t *player_positions, BombInfo *bomb_infos, Game *game);
+void handle_explosion(BombInfo bomb_info, Game * game, player_pos_t *player_positions);
+int check_game_over(Game *game);
 
 #endif

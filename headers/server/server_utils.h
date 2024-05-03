@@ -7,9 +7,8 @@
 #define TIMEOUT_MS 10000
 
 int init_server(uint16_t port, ServerGames**);
-void* multicast_grid(void* args);
 void* recv_datas(void* args);
-void* multicast_updates(void* args);
+void* launch_game(void* args);
 int close_server(int sockfd, ServerGames**);
 
 #endif

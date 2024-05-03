@@ -3,6 +3,7 @@
 #include <string.h>
 #include <unistd.h>
 #include "client/client_utils.h"
+#include "socket_utils.h"
 #include "debug.h"
 
 int init_client(uint16_t port_tcp, char *server_ip) {
@@ -40,7 +41,7 @@ int subscribe_multicast(uint16_t port_multicast, char* adr_multicast) {
     multicast_addr.sin6_addr = in6addr_any;
     multicast_addr.sin6_port = htons(port_multicast);
 
-    if(sock_reuse_addr(sock_multicast) < 0) {
+    if(set_reuseaddr(sock_multicast) < 0) {
         close(sock_multicast);
         exit(EXIT_FAILURE);
     }
@@ -51,12 +52,7 @@ int subscribe_multicast(uint16_t port_multicast, char* adr_multicast) {
         return -1;
     }
 
-    struct ipv6_mreq group = {0};
-    inet_pton(AF_INET6, adr_multicast, &(group.ipv6mr_multiaddr));
-    group.ipv6mr_interface = 0;
-
-    if (setsockopt(sock_multicast, IPPROTO_IPV6, IPV6_JOIN_GROUP, &group, sizeof(group)) < 0) {
-        perror("setsockopt erreur subscribe to group");
+    if(set_join_group(sock_multicast, adr_multicast)) {
         close(sock_multicast);
         return -1;
     }
@@ -66,9 +62,9 @@ int subscribe_multicast(uint16_t port_multicast, char* adr_multicast) {
 }
 
 UDP_Infos *init_udp_connection(uint16_t port_udp) {
-    int sockfd;
+    int sockfd = socket(AF_INET6, SOCK_DGRAM, 0);
 
-    if ((sockfd = socket(AF_INET6, SOCK_DGRAM, 0)) < 0) {
+    if (sockfd < 0) {
         perror("Erreur while creating UDP socket");
         return NULL;
     }
@@ -80,12 +76,10 @@ UDP_Infos *init_udp_connection(uint16_t port_udp) {
     serv_addr.sin6_addr = in6addr_any;
     serv_addr.sin6_scope_id = 0;
 
-    int ok = 1;
-	if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &ok, sizeof(ok)) < 0) {
-		perror("echec de SO_REUSEADDR");
-		close(sockfd);
-		return NULL;
-	}
+    if(set_reuseaddr(sockfd)) {
+        close(sockfd);
+        exit(EXIT_FAILURE);
+    }
 
     if (bind(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
         perror("Erreur while binding socket with the server adresse");
@@ -105,13 +99,4 @@ UDP_Infos *init_udp_connection(uint16_t port_udp) {
     memcpy(&(udp_infos->server_addr), &serv_addr, sizeof(serv_addr));
 
     return udp_infos;
-}
-
-int sock_reuse_addr(int sock) {
-    int ok = 1;
-    if(setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &ok, sizeof(ok)) < 0) {
-        perror("Echec de SO_REUSEADDR");
-        return -1;
-    }
-    return 0;
 }

@@ -78,6 +78,31 @@ SReq_Grid ntoh_grid(Buf_t *grid) {
     return grid_rq;
 }
 
+SReq_Cell ntoh_cell(Buf_t *cells) {
+    SReq_Cell cell_rq = {0};
+
+    Header_t header;
+    uint16_t num;
+    uint8_t nb;
+
+    size_t from = 0;
+    copyfrombuf(cells, &from, sizeof(header), &header);
+    copyfrombuf(cells, &from, sizeof(num), &num);
+    copyfrombuf(cells, &from, sizeof(nb), &nb);
+
+    cell_rq.header = ntohs(header);
+    cell_rq.num = ntohs(num);
+    cell_rq.nb = nb;
+
+    for(size_t i = 0; i < nb; ++i) {
+        Cell cell;
+        copyfrombuf(cells, &from, sizeof(cell), &cell);
+        cell_rq.cells[i] = cell;
+    }
+
+    return cell_rq;
+}
+
 uint8_t send_client_request(int sockfd, CReq *client_rq) {
     Buf_t bytes_rq;
     initbuf(&bytes_rq);
@@ -158,9 +183,11 @@ uint8_t recv_server_datagram(int sockfd, SReq *server_rq, size_t max_recv) {
 
     if(server_rq->type == SDIFF_GRID) {
         server_rq->req.grid = ntoh_grid(&buf_recv);
+    } else if(server_rq->type == SDIFF_CASES) {
+        server_rq->req.cell = ntoh_cell(&buf_recv);
     } else {
         // TODO
-        printf("recv_server_udp_request TODO\n"); 
+        printf("recv_server_udp_request TODO\n");
     }
 
     return 0;
@@ -181,7 +208,7 @@ uint8_t send_datagram(int sfd, struct sockaddr_in6 serv_addr, CReq *client_rq) {
         }
     } else {
         // TODO : À implementer avec toutes les autres requêtes
-        printf("Not yet %d\n", type);
+        log_info("Not yet %d\n", type);
     }
     return 0;
 }

@@ -17,5 +17,6 @@ CReq_Join ntoh_integrationrq(Buf_t *buf_rq);
 uint8_t recv_client_request(int sockfd, CReq *client_rq, size_t sto_recv);
 uint8_t send_server_request(int sockfd, SReq *server_rq);
 uint8_t send_datagram(int sfd, struct sockaddr_in6 gradr, SReq *server_rq);
+uint8_t recv_client_datagrams(int sfd, CReq *client_rq);
 
 #endif

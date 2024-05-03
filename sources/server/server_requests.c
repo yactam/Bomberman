@@ -45,3 +45,24 @@ int create_multicastrq(SReq *serverrq, GameBoard gameboard, uint16_t num) {
 
     return 0;
 }
+
+int create_cellrq(SReq *serverrq, GameBoard prev_board, GameBoard board, uint16_t num, u_int16_t nb_cases) {
+    serverrq->type = SDIFF_CASES;
+    serverrq->req.cell.header = (SDIFF_CASES | 0 << CODEREQ_LEN);
+    serverrq->req.cell.num = num;
+    serverrq->req.cell.nb = nb_cases;
+
+    int index = 0;
+    for (size_t i = 0; i < board.height; ++i) {
+        for (size_t j = 0; j < board.width; ++j) {
+            if (prev_board.cells[i][j] != board.cells[i][j]) {
+                serverrq->req.cell.cells[index].coord.row = i;
+                serverrq->req.cell.cells[index].coord.col = j;
+                serverrq->req.cell.cells[index].content = board.cells[i][j];
+                index++;
+            }
+        }
+    }
+
+    return 0;
+}
