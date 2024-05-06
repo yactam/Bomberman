@@ -383,7 +383,7 @@ int process_players_actions(PlayerAction *actions, size_t nb_actions, player_pos
 
     for(size_t i = 0; i < NB_PLAYERS; ++i) {
         if(bomb_infos[i].bomb_dropped && bomb_infos[i].explosion_time <= time(NULL)) {
-            ret = handle_explosion(bomb_infos[i], game, player_positions);
+            ret = handle_explosion(bomb_infos, i, game, player_positions);
             bomb_infos[i].bomb_dropped = false;
             if(ret!=-1) break;
         }
@@ -393,8 +393,9 @@ int process_players_actions(PlayerAction *actions, size_t nb_actions, player_pos
     return ret;
 }
 
-int handle_explosion(BombInfo bomb_info, Game * game, player_pos_t *player_positions) {
+int handle_explosion(BombInfo *bomb_infos, size_t bomb_pos, Game * game, player_pos_t *player_positions) {
     GameBoard* board = &(game->game_board);
+    BombInfo bomb_info = bomb_infos[bomb_pos];
     int i = bomb_info.bomb_x;
     int j = bomb_info.bomb_y;
     board->cells[i][j] = EXPLOSE;
@@ -413,6 +414,16 @@ int handle_explosion(BombInfo bomb_info, Game * game, player_pos_t *player_posit
             if (board->cells[x][j] == DWALL) {
                 board->cells[x][j] = EMPTY;
                 break;
+            }
+            if (dx!=0&&board->cells[x][j] == BOMB){
+                debug("recursive explosion");
+                for(size_t c = 0; c < NB_PLAYERS; c += 1){
+                    if(bomb_infos[c].bomb_dropped==true && bomb_infos[c].bomb_x==x&&bomb_infos[c].bomb_y==j){
+                        ret = handle_explosion(bomb_infos,c,game,player_positions);
+                        bomb_infos[c].bomb_dropped == false;
+                        if(ret!=-1) return ret; //si ret!=-1 on a pas besoin de finir le calcul car la game est fini(toujours vrai)
+                    }
+                }
             }
 
             if (board->cells[x][j] >= PLAYER1 && board->cells[x][j] <= PLAYER4) {
@@ -449,6 +460,16 @@ int handle_explosion(BombInfo bomb_info, Game * game, player_pos_t *player_posit
                 board->cells[x][j] = EMPTY;
                 break;
             }
+            if (board->cells[x][j] == BOMB){
+                debug("recursive explosion");
+                for(size_t c = 0; c < NB_PLAYERS; c += 1){
+                    if(bomb_infos[c].bomb_dropped==true && bomb_infos[c].bomb_x==x&&bomb_infos[c].bomb_y==j){
+                        ret = handle_explosion(bomb_infos,c,game,player_positions);
+                        bomb_infos[c].bomb_dropped == false;
+                        if(ret!=-1) return ret; //si ret!=-1 on a pas besoin de finir le calcul car la game est fini(toujours vrai)
+                    }
+                }
+            }
 
             if (board->cells[x][j] >= PLAYER1 && board->cells[x][j] <= PLAYER4) {
                 // Éliminer le joueur
@@ -484,6 +505,16 @@ int handle_explosion(BombInfo bomb_info, Game * game, player_pos_t *player_posit
                 board->cells[i][y] = EMPTY;
                 break;
             }
+            if (board->cells[i][y] == BOMB){
+                debug("recursive explosion");
+                for(size_t c = 0; c < NB_PLAYERS; c += 1){
+                    if(bomb_infos[c].bomb_dropped==true && bomb_infos[c].bomb_x==i && bomb_infos[c].bomb_y==y){
+                        ret = handle_explosion(bomb_infos,c,game,player_positions);
+                        bomb_infos[c].bomb_dropped == false;
+                        if(ret!=-1) return ret; //si ret!=-1 on a pas besoin de finir le calcul car la game est fini(toujours vrai)
+                    }
+                }
+            }
 
             if (board->cells[i][y] >= PLAYER1 && board->cells[i][y] <= PLAYER4) {
                 // Éliminer le joueur
@@ -518,6 +549,16 @@ int handle_explosion(BombInfo bomb_info, Game * game, player_pos_t *player_posit
             if (board->cells[i][y] == DWALL) {
                 board->cells[i][y] = EMPTY;
                 break;
+            }
+            if (board->cells[i][y] == BOMB){
+                debug("recursive explosion");
+                for(size_t c = 0; c < NB_PLAYERS; c += 1){
+                    if(bomb_infos[c].bomb_dropped==true && bomb_infos[c].bomb_x==i&&bomb_infos[c].bomb_y==y){
+                        ret = handle_explosion(bomb_infos,c,game,player_positions);
+                        bomb_infos[c].bomb_dropped == false;
+                        if(ret!=-1) return ret; //si ret!=-1 on a pas besoin de finir le calcul car la game est fini(toujours vrai)
+                    }
+                }
             }
 
             if (board->cells[i][y] >= PLAYER1 && board->cells[i][y] <= PLAYER4) {
@@ -558,7 +599,16 @@ int handle_explosion(BombInfo bomb_info, Game * game, player_pos_t *player_posit
                     game->players[player_id].player_status = DEAD;
                     ret = check_game_over(game);
                     if(ret!=-1) return ret;
+                } else if (board->cells[x][y] == BOMB){
+                debug("recursive explosion");
+                for(size_t c = 0; c < NB_PLAYERS; c += 1){
+                    if(bomb_infos[c].bomb_dropped==true && bomb_infos[c].bomb_x==x&&bomb_infos[c].bomb_y==y){
+                        ret = handle_explosion(bomb_infos,c,game,player_positions);
+                        bomb_infos[c].bomb_dropped == false;
+                        if(ret!=-1) return ret; //si ret!=-1 on a pas besoin de finir le calcul car la game est fini(toujours vrai)
+                    }
                 }
+            }
 
                 for(size_t player = 0; player < NB_PLAYERS; player++) {
                     if(player_positions[player].x == x && player_positions[player].y == y) {
