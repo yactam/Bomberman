@@ -133,7 +133,7 @@ void* launch_game(void* args) {
             return NULL;
         } else if(ret_poll == 0) {
             // traiter les actions
-            process_players_actions(players_actions, nb_actions, player_positions, bombs_infos, &game);
+            int winner = process_players_actions(players_actions, nb_actions, player_positions, bombs_infos, &game);
             board = game.game_board;
             nb_actions = 0;
             memset(players_actions, 0, sizeof(players_actions));
@@ -161,7 +161,7 @@ void* launch_game(void* args) {
             clear_bombs_explosions(&game.game_board);
             pthread_mutex_unlock(&game.game_mtx);
             pthread_mutex_lock(&game.game_mtx);
-            int winner = check_game_over(&game);
+            //int winner = check_game_over(&game);
             pthread_mutex_unlock(&game.game_mtx);
             if(winner != -1) {
                 debug("CHECK GAME OVER THERE IS A WINNER %d", winner);

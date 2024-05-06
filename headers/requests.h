@@ -42,7 +42,7 @@
 #define MAX_HEIGHT 256
 
 
-typedef enum : uint8_t {
+typedef enum{
 	GO_NORTH=0,
 	GO_EAST=1,
 	GO_SOUTH=2,
@@ -51,7 +51,7 @@ typedef enum : uint8_t {
 	UNDO=5
 } action_t;
 
-typedef enum : uint8_t {
+typedef enum{
 	EMPTY=0,
 	IWALL=1,
 	DWALL=2,
