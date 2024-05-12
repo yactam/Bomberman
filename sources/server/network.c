@@ -76,6 +76,16 @@ CReq_Join ntoh_integrationrq(Buf_t *buf_rq) {
     return join;
 }
 
+Header_t get_header(Buf_t *buf_rq){
+    
+    Header_t header;
+    
+    size_t start = 0;
+    copyfrombuf(buf_rq, &start, sizeof(header), &header);
+    
+    return ntohs(header);
+}
+
 CReq_Play ntoh_ongamerq(Buf_t *buf_rq) {
     CReq_Play play = {0};
     Header_t header;
@@ -121,7 +131,32 @@ uint8_t recv_client_request(int sockfd, CReq *client_rq, size_t sto_recv) {
 
     if(client_rq->type == CREQ_MODE4 || client_rq->type == CREQ_TEAMS || client_rq->type == CCONF_MODE4 || client_rq->type == CCONF_TEAMS) {
         client_rq->req.join = ntoh_integrationrq(&req_buf);
-    } else {
+    } else if(client_rq->type == CALL_CHAT){
+        debug("recv fctn");
+        client_rq->req.tchat.header =get_header(&req_buf);
+        u_int8_t size = 0;
+        recv(sockfd,&size,sizeof(u_int8_t),0);
+        debug("message size %d",size);
+        //char* buf = malloc(size*sizeof(char));
+        size_t recvd = 0;
+        while(recvd<size){
+            int rec = recv(socket,(client_rq->req.tchat.data)+recvd,size,0);
+            if(rec < 0) {
+                perror("Erreur recv");
+                return 1;
+            }
+            recvd += rec;
+            if(rec==0){
+                log_info("client disconected");
+                return 1;
+            }
+        }
+        client_rq -> req.tchat.len = size;
+        //client_rq -> req.tchat.data = buf;
+        log_info("message reçu: %s", client_rq->req.tchat.data);
+    }
+    else {
+        debug("aled fctn");
         // TODO : continuer l'implementation avec toutes les requetes possibles 
         log_info("Not yet %d\n", client_rq->type);
     }
@@ -142,11 +177,19 @@ uint8_t send_server_request(int sockfd, SReq *server_rq) {
             perror("Erreur send server request start");
             return 1;
         }
-    } else {
+    }else if(type == CALL_CHAT){
+
+    } 
+    
+    else {
         // TODO : À implementer avec toutes les autres requêtes
         log_info("Not yet %d\n", type);
     }
     return 0;
+}
+
+u_int8_t send_server_tchat(int socket, SReq *msg){
+
 }
 
 uint8_t send_datagram(int sfd, struct sockaddr_in6 gradr, SReq *server_rq) {

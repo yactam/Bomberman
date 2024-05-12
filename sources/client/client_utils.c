@@ -5,6 +5,7 @@
 #include "client/client_utils.h"
 #include "socket_utils.h"
 #include "debug.h"
+#include "game.h"
 
 int init_client(uint16_t port_tcp, char *server_ip) {
 
@@ -99,4 +100,33 @@ UDP_Infos *init_udp_connection(uint16_t port_udp) {
     memcpy(&(udp_infos->server_addr), &serv_addr, sizeof(serv_addr));
 
     return udp_infos;
+}
+
+//envoyer un message via TCP
+void sendMessage(Message *msg, int socket) {
+    u_int16_t codereq = CALL_CHAT;
+    Header_t header = (codereq | ((msg->id) << CODEREQ_LEN) | ((msg->eq) << (CODEREQ_LEN + ID_LEN)));
+
+    send(socket, &header, sizeof(Header_t),0);
+    // envoie la structure de message entière
+    send(socket, &(msg->len), sizeof(u_int8_t), 0);
+    // envoye les données textuelles
+    send(socket, msg->data, (msg->len)*sizeof(char), 0);
+}
+Message *initMessage(u_int8_t id_player, u_int8_t id_team){
+    Message *msg = malloc(sizeof(Message));
+    msg-> codereq =CODEREQ_ALL_PLAYERS ;
+    msg->id = id_player;
+    msg->eq = id_team;
+    msg->len = 0;
+    msg->data = malloc(256*sizeof(char));
+    return msg;
+}
+
+void clearMessage(Message *msg){
+    msg->len = 0;
+}
+void freeMessage(Message* msg){
+    free(msg->data);
+    free(msg);
 }

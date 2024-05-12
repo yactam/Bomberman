@@ -11,6 +11,8 @@
 
 #include "requests.h"
 
+#define CODEREQ_SIZE 13
+
 Buf_t hton_integrationrq(CReq_Join *join_rq);
 uint8_t send_client_request(int sockfd, CReq *client_rq);
 uint8_t recv_server_request(int sockfd, SReq *server_rq, size_t sto_recv);

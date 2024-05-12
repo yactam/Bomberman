@@ -19,4 +19,5 @@ uint8_t send_server_request(int sockfd, SReq *server_rq);
 uint8_t send_datagram(int sfd, struct sockaddr_in6 gradr, SReq *server_rq);
 uint8_t recv_client_datagrams(int sfd, CReq *client_rq);
 
+
 #endif

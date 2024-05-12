@@ -10,5 +10,6 @@ int init_server(uint16_t port, ServerGames**);
 void* recv_datas(void* args);
 void* launch_game(void* args);
 int close_server(int sockfd, ServerGames**);
+//void (Message * msg, u_int8_t id_player, u_int8_t id_team);
 
 #endif

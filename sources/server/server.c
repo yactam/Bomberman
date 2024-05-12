@@ -118,6 +118,7 @@ int main(int argc, char** argv) {
                         close(client_tcp_socket);
                         continue;
                     }
+                    
 
                     debug("Join request received");
                     debug_creq(&join_rq);
@@ -148,8 +149,13 @@ int main(int argc, char** argv) {
                     } else if(codereq == CCONF_MODE4 || codereq == CCONF_TEAMS) {
                         debug("Le client a confirmé qu'il veut rejoindre la partie");
                         set_player_status(&server_games, client_infos->game_udp_port, client_infos->client_id, READY);
-                    } else {
+                    } else if(codereq ==CODEREQ_ALL_PLAYERS){
+                        debug("message recvd");
+                        send_server_tchat(client_tcp_socket,&join_rq);
                         // TODO le tchat sinon c'est une erreur refuser le client
+                    }
+                    else{
+                        debug("aled");
                     }
                 }
             }

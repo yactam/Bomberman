@@ -182,6 +182,7 @@ uint16_t get_eq(Header_t header);
 uint8_t get_action(Message_t message);
 uint16_t get_num(Message_t message);
 
+
 void debug_creq(CReq *client_rq);
 void debug_sreq(SReq *server_rq);
 

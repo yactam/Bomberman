@@ -78,7 +78,7 @@ int main(int argc, char** argv) {
     printf("Le client a confirmé la connexion au serveur. en attente d'autres joueurs...\n");
 
     GameBoard board = {0};
-    Message tchat = {0};
+    Message *tchat = initMessage(id_player,id_team);
     uint16_t num = 0;
     bool game_initilized = false;
 
@@ -133,7 +133,7 @@ int main(int argc, char** argv) {
                 }
 
                 draw_board(board);
-                draw_tchat(tchat);
+                draw_tchat(*tchat);
             } else if(fds[1].revents & POLLIN) {
                 pressed_key = getch();
                 CReq ongame_req = {0};
@@ -159,22 +159,25 @@ int main(int argc, char** argv) {
                         create_ongamerq(&ongame_req, gametype, id_player, id_team, num, UNDO);
                         break;
                     case KEY_BACKSPACE:
-                        if(tchat.length > 0) {
-                            tchat.data[tchat.length - 1] = 0;
-                            tchat.length--;
-                            draw_tchat(tchat);
+                        if(tchat->len > 0) {
+                            tchat->data[tchat->len - 1] = 0;
+                            tchat->len--;
+                            draw_tchat(*tchat);
                         }
                         break;
-                    case KEY_ENTER:
-                        // Envoyer le message du tchat
+                    case '*':
+                        sendMessage(tchat,tcp_socket);
+                        clearMessage(tchat);
+                        endwin();
+                        return 0;
                         break;
                     default:
-                        if(tchat.length == 0) {
-                            tchat.data[tchat.length++] = '>';
+                        if(tchat->len == 0) {
+                            tchat->data[tchat->len++] = '>';
                         }
-                        if(tchat.length < MAX_MESS_LENGTH) {
-                            tchat.data[tchat.length++] = pressed_key;
-                            draw_tchat(tchat);
+                        if(tchat->len < MAX_MESS_LENGTH) {
+                            tchat->data[tchat->len++] = pressed_key;
+                            draw_tchat(*tchat);
                         }
                         break;
                 }

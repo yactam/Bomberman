@@ -158,7 +158,7 @@ void draw_tchat(Message message) {
     size_t x = 0;
     size_t y = 1;
 
-    for(size_t i = 0; i < message.length; ++i) {
+    for(size_t i = 0; i < message.len; ++i) {
         if (x >= max_x - 2) {
             x = 0;
             y++;
