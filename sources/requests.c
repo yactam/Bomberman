@@ -27,15 +27,15 @@ int copyfrombuf(Buf_t *buffer, size_t *start, size_t elt_size, void *dst) {
 }
 
 uint16_t get_codereq(Header_t header) {
-    return header & CODEREQ_MASK;
+    return (header >> (EQ_LEN + ID_LEN)) & CODEREQ_MASK;
 }
 
 uint16_t get_id(Header_t header) {
-    return (header & ID_MASK) >> CODEREQ_LEN;
+    return (header >> EQ_LEN) & ID_MASK;
 }
 
 uint16_t get_eq(Header_t header) {
-    return (header & EQ_MASK) >> (CODEREQ_LEN + ID_LEN);
+    return (header & EQ_MASK);
 }
 
 uint16_t get_num(Message_t message) {
@@ -43,7 +43,7 @@ uint16_t get_num(Message_t message) {
 }
 
 uint8_t get_action(Message_t message) {
-    return (message & ACTION_MASK) >> CNUM_LEN;
+    return (message & ACTION_MASK);
 }
 
 void debug_header(Header_t header) {

@@ -11,7 +11,7 @@
 #include "game.h"
 #include "debug.h"
 
-#define FREQ 100
+#define FREQ 10
 
 int init_server(uint16_t port, ServerGames **server_games) {
     int tcp_socket;

@@ -226,7 +226,6 @@ void* games_supervisor_handler(void* arg) {
             while (server_games->games[i].game_status == WAITING_CONNECTIONS) {
                 pthread_cond_wait(&server_games->games[i].game_cond, &server_games->games[i].game_mtx);
             }
-            pthread_mutex_unlock(&server_games->games[i].game_mtx);
 
             if(server_games->games[i].game_status == READY_TO_START) {
                 debug("Le serveur est prêt à lancer la partie %d", server_games->games[i].game_id);
@@ -240,6 +239,8 @@ void* games_supervisor_handler(void* arg) {
                 pthread_join(server_games->games[i].game_thread, NULL);
                 // TODO Réinitialiser la partie pour qu'elle soit prête à etre utilisé aprés
             }
+
+            pthread_mutex_unlock(&server_games->games[i].game_mtx);
         }
         sleep(10);
     }

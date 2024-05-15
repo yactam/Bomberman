@@ -1,30 +1,47 @@
 #include <stdlib.h>
+#include <stdio.h>
 #include <arpa/inet.h>
 #include <string.h>
 #include <unistd.h>
+#include <netdb.h>
 #include "client/client_utils.h"
 #include "socket_utils.h"
 #include "debug.h"
 
-int init_client(uint16_t port_tcp, char *server_ip) {
+int init_client(char *port_tcp, char *hostname) {
 
-    int tcp_socket = socket(PF_INET6, SOCK_STREAM, 0);
-    if (tcp_socket < 0) {
-        perror("Error creating TCP socket");
+    struct addrinfo hints, *r, *p;
+    memset(&hints, 0, sizeof(struct addrinfo));
+    hints.ai_family = AF_INET6;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_flags = AI_V4MAPPED | AI_ALL;
+
+    int status = getaddrinfo(hostname, port_tcp, &hints, &r);
+    if (status != 0) {
+        dprintf(STDERR_FILENO, "getaddrinfo error: %s\n", gai_strerror(status));
         return -1;
     }
 
-    struct sockaddr_in6 server_tcp = {0};
-    server_tcp.sin6_family = AF_INET6;
-    inet_pton(AF_INET6, server_ip, &server_tcp.sin6_addr);
-    server_tcp.sin6_port = htons(port_tcp);
+	p = r;
+	int tcp_socket = -1;
+	while(p != NULL) {
+		tcp_socket = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
+		if (tcp_socket > 0) {
+			if (connect(tcp_socket, p->ai_addr, sizeof(struct sockaddr_in6)) == 0) {
+				break;
+			}
+		}
+        p = p->ai_next;
+	}
 
-    if (connect(tcp_socket, (struct sockaddr *)&server_tcp, sizeof(server_tcp)) == -1) {
-        perror("Error connecting to server");
-        return -1;
-    }
+    if (p == NULL) {
+		dprintf(STDERR_FILENO, "connection failed\n");
+		freeaddrinfo(r);
+		return -1;
+	}
 
-    return tcp_socket;
+    freeaddrinfo(r);
+	return tcp_socket;
 }
 
 int subscribe_multicast(uint16_t port_multicast, char* adr_multicast) {
