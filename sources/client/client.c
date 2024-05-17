@@ -9,12 +9,12 @@
 #include "client/client_utils.h"
 #include "game.h"
 
-#define SERVER_IP "::1"
-#define TCP_PORT 8888
+#define SERVER_NAME "::1"
+#define TCP_PORT "8888"
 #define TIMEOUT -1
 
 int main(int argc, char** argv) {
-    int tcp_socket = init_client(TCP_PORT, SERVER_IP);
+    int tcp_socket = init_client(TCP_PORT, SERVER_NAME);
 
     if(tcp_socket < 0) {
         perror("Erreur while initialising client connection");

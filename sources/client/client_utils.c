@@ -1,31 +1,48 @@
 #include <stdlib.h>
+#include <stdio.h>
 #include <arpa/inet.h>
 #include <string.h>
 #include <unistd.h>
+#include <netdb.h>
 #include "client/client_utils.h"
 #include "socket_utils.h"
 #include "debug.h"
 #include "game.h"
 
-int init_client(uint16_t port_tcp, char *server_ip) {
+int init_client(char *port_tcp, char *hostname) {
 
-    int tcp_socket = socket(PF_INET6, SOCK_STREAM, 0);
-    if (tcp_socket < 0) {
-        perror("Error creating TCP socket");
+    struct addrinfo hints, *r, *p;
+    memset(&hints, 0, sizeof(struct addrinfo));
+    hints.ai_family = AF_INET6;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_flags = AI_V4MAPPED | AI_ALL;
+
+    int status = getaddrinfo(hostname, port_tcp, &hints, &r);
+    if (status != 0) {
+        dprintf(STDERR_FILENO, "getaddrinfo error: %s\n", gai_strerror(status));
         return -1;
     }
 
-    struct sockaddr_in6 server_tcp = {0};
-    server_tcp.sin6_family = AF_INET6;
-    inet_pton(AF_INET6, server_ip, &server_tcp.sin6_addr);
-    server_tcp.sin6_port = htons(port_tcp);
+	p = r;
+	int tcp_socket = -1;
+	while(p != NULL) {
+		tcp_socket = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
+		if (tcp_socket > 0) {
+			if (connect(tcp_socket, p->ai_addr, sizeof(struct sockaddr_in6)) == 0) {
+				break;
+			}
+		}
+        p = p->ai_next;
+	}
 
-    if (connect(tcp_socket, (struct sockaddr *)&server_tcp, sizeof(server_tcp)) == -1) {
-        perror("Error connecting to server");
-        return -1;
-    }
+    if (p == NULL) {
+		dprintf(STDERR_FILENO, "connection failed\n");
+		freeaddrinfo(r);
+		return -1;
+	}
 
-    return tcp_socket;
+    freeaddrinfo(r);
+	return tcp_socket;
 }
 
 int subscribe_multicast(uint16_t port_multicast, char* adr_multicast) {
@@ -63,9 +80,9 @@ int subscribe_multicast(uint16_t port_multicast, char* adr_multicast) {
 }
 
 UDP_Infos *init_udp_connection(uint16_t port_udp) {
-    int sockfd = socket(AF_INET6, SOCK_DGRAM, 0);
+    int sockfd;
 
-    if (sockfd < 0) {
+    if ((sockfd = socket(AF_INET6, SOCK_DGRAM, 0)) < 0) {
         perror("Erreur while creating UDP socket");
         return NULL;
     }
@@ -77,10 +94,12 @@ UDP_Infos *init_udp_connection(uint16_t port_udp) {
     serv_addr.sin6_addr = in6addr_any;
     serv_addr.sin6_scope_id = 0;
 
-    if(set_reuseaddr(sockfd)) {
-        close(sockfd);
-        exit(EXIT_FAILURE);
-    }
+    int ok = 1;
+	if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &ok, sizeof(ok)) < 0) {
+		perror("echec de SO_REUSEADDR");
+		close(sockfd);
+		return NULL;
+	}
 
     if (bind(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
         perror("Erreur while binding socket with the server adresse");

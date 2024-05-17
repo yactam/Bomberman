@@ -21,7 +21,7 @@ int create_regestartionrq(ServerGames **server_games, SReq *serverrq, CReq_Join 
         uint8_t team_id = player_id % 2;
         Header_t header = {0};
         uint16_t codereq = (mode == MODE4) ? SREQ_MODE4 : SREQ_TEAMS;
-        header = (codereq | (player_id << CODEREQ_LEN) | (team_id << (CODEREQ_LEN + ID_LEN)));
+        header = (codereq << (EQ_LEN + ID_LEN) | (player_id << EQ_LEN) | (team_id));
         serverrq->type = codereq;
         serverrq->req.start.header = header;
         serverrq->req.start.portudp = portudp;
@@ -33,7 +33,7 @@ int create_regestartionrq(ServerGames **server_games, SReq *serverrq, CReq_Join 
 
 int create_multicastrq(SReq *serverrq, GameBoard gameboard, uint16_t num) {
     serverrq->type = SDIFF_GRID;
-    serverrq->req.grid.header = (SDIFF_GRID | 0 << CODEREQ_LEN);
+    serverrq->req.grid.header = (SDIFF_GRID << (ID_LEN + EQ_LEN) | 0);
     serverrq->req.grid.hauteur = gameboard.height;
     serverrq->req.grid.largeur  = gameboard.width;
     serverrq->req.grid.num = num;
@@ -48,7 +48,7 @@ int create_multicastrq(SReq *serverrq, GameBoard gameboard, uint16_t num) {
 
 int create_cellrq(SReq *serverrq, GameBoard prev_board, GameBoard board, uint16_t num, u_int16_t nb_cases) {
     serverrq->type = SDIFF_CASES;
-    serverrq->req.cell.header = (SDIFF_CASES | 0 << CODEREQ_LEN);
+    serverrq->req.cell.header = (SDIFF_CASES << (EQ_LEN + ID_LEN) | 0);
     serverrq->req.cell.num = num;
     serverrq->req.cell.nb = nb_cases;
 

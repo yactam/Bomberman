@@ -11,14 +11,6 @@
 #define MULTICAST_ADDR "ff12::1"
 
 typedef enum {
-    DISCONNECTED = 0,
-    CONNECTING,
-    READY,
-    PLAYING,
-    DEAD
-} player_status_t;
-
-typedef enum {
     WAITING_CONNECTIONS = 0,
     READY_TO_START,
     ON_GOING,

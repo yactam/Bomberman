@@ -8,7 +8,7 @@
 
 int create_integrationrq(CReq *clientrq) {
     uint8_t gametype = input_game_type();
-    Header_t header = (gametype | 0 << CODEREQ_LEN);
+    Header_t header = (gametype << (EQ_LEN + ID_LEN) | 0);
     clientrq->type = (gametype == 1) ? CREQ_MODE4 : CREQ_TEAMS;
     clientrq->req.join.header = header;
     return 0;
@@ -24,7 +24,7 @@ int create_confrq(CReq *clientrq, game_mode_t gametype, uint8_t id_player, uint8
         return 1;
     }
 
-    Header_t header = (codereq | (id_player << CODEREQ_LEN) | (id_team << (CODEREQ_LEN + ID_LEN)));
+    Header_t header = (codereq << (EQ_LEN + ID_LEN) | (id_player << EQ_LEN) | (id_team));
     
     clientrq->type = codereq;
     clientrq->req.join.header = header;
@@ -42,12 +42,12 @@ int create_ongamerq(CReq *clientrq, game_mode_t game_mode, uint8_t id_player, ui
         return 1;
     }
 
-    Header_t header = (codereq | (id_player << CODEREQ_LEN) | (id_team << (CODEREQ_LEN + ID_LEN)));
+    Header_t header = (codereq << (EQ_LEN + ID_LEN) | (id_player << EQ_LEN) | (id_team));
     
     clientrq->type = codereq;
     clientrq->req.play.header = header;
 
-    Message_t message = (num | action << CNUM_LEN);
+    Message_t message = (num << ACTION_LEN | action);
     clientrq->req.play.message = message;
     return 0;
 }

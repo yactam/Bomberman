@@ -12,7 +12,9 @@
 
 #define CODEREQ_LEN 13
 #define ID_LEN 2
+#define EQ_LEN 1
 #define CNUM_LEN 13
+#define ACTION_LEN 3
 
 #define CREQ_MODE4 1
 #define CREQ_TEAMS 2
@@ -32,11 +34,11 @@
 #define SGAMEOVER_MODE4 15
 #define SGAMEOVER_TEAMS 16
 
-#define CODEREQ_MASK 0x1FFF
+#define CODEREQ_MASK 0xFFF
 #define MESSAGE_MASK 0x1FFF
-#define ID_MASK 0x6000
-#define EQ_MASK 0x8000
-#define ACTION_MASK 0xE000
+#define ID_MASK 0x3
+#define EQ_MASK 0x1
+#define ACTION_MASK 0x7
 
 #define MAX_WIDTH 256
 #define MAX_HEIGHT 256
@@ -170,6 +172,7 @@ typedef struct {
 	uint8_t client_id;
 	time_t last_activity;
 	uint16_t game_udp_port;
+	player_status_t status;
 } Client_Infos;
 
 void initbuf(Buf_t *buffer);
