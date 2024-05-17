@@ -3,13 +3,18 @@
 
 #include <stdlib.h>
 #include <stdint.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
 
 #define MAX_DATA 255
 #define MAX_BUFSIZE 4069
+#define MAX_ACTIONS 4069
 
 #define CODEREQ_LEN 13
 #define ID_LEN 2
+#define EQ_LEN 1
 #define CNUM_LEN 13
+#define ACTION_LEN 3
 
 #define CREQ_MODE4 1
 #define CREQ_TEAMS 2
@@ -29,33 +34,43 @@
 #define SGAMEOVER_MODE4 15
 #define SGAMEOVER_TEAMS 16
 
-#define CODEREQ_MASK 0x1FFF
-#define ID_MASK 0x6000
-#define EQ_MASK 0x8000
+#define CODEREQ_MASK 0xFFF
+#define MESSAGE_MASK 0x1FFF
+#define ID_MASK 0x3
+#define EQ_MASK 0x1
+#define ACTION_MASK 0x7
 
 #define MAX_WIDTH 256
 #define MAX_HEIGHT 256
 
 
-typedef enum : uint8_t {
-	GO_NORTH,
-	GO_EAST,
-	GO_SOUTH,
-	GO_OUEST,
-	DROP_BOMB,
-	UNDO
+typedef enum {
+	GO_NORTH=0,
+	GO_EAST=1,
+	GO_SOUTH=2,
+	GO_OUEST=3,
+	DROP_BOMB=4,
+	UNDO=5
 } action_t;
 
-typedef enum : uint8_t {
-	EMPTY,
-	IWALL,
-	DWALL,
-	BOMB,
-	EXPLOSE,
-	PLAYER1,
-	PLAYER2,
-	PLAYER3,
-	PLAYER4
+typedef enum {
+    DISCONNECTED = 0,
+    CONNECTING,
+    READY,
+    PLAYING,
+    DEAD
+} player_status_t;
+
+typedef enum {
+	EMPTY=0,
+	IWALL=1,
+	DWALL=2,
+	BOMB=3,
+	EXPLOSE=4,
+	PLAYER1=5,
+	PLAYER2=6,
+	PLAYER3=7,
+	PLAYER4=8
 } cases_t;
 
 
@@ -115,14 +130,14 @@ typedef struct {
 
 typedef struct {
 	Coord coord;
-	cases_t content : 8;
+	uint8_t content;
 } Cell;
 
 typedef struct {
 	Header_t header;
 	uint16_t num;
 	uint8_t nb;
-	Cell cells[MAX_HEIGHT][MAX_WIDTH];
+	Cell cells[MAX_HEIGHT * MAX_WIDTH];
 } SReq_Cell;
 
 typedef struct {
@@ -155,6 +170,19 @@ typedef struct {
 	size_t size;
 } Buf_t;
 
+typedef struct {
+    int sock_udp;
+    struct sockaddr_in6 server_addr;
+} UDP_Infos;
+
+typedef struct {
+	int client_tcp_sock;
+	uint8_t client_id;
+	time_t last_activity;
+	uint16_t game_udp_port;
+	player_status_t status;
+} Client_Infos;
+
 void initbuf(Buf_t *buffer);
 int appendbuf(Buf_t *buffer, void *elt, size_t elt_size);
 int copyfrombuf(Buf_t *buffer, size_t *start, size_t elt_size, void *dst);
@@ -162,6 +190,8 @@ int copyfrombuf(Buf_t *buffer, size_t *start, size_t elt_size, void *dst);
 uint16_t get_codereq(Header_t header);
 uint16_t get_id(Header_t header);
 uint16_t get_eq(Header_t header);
+uint8_t get_action(Message_t message);
+uint16_t get_num(Message_t message);
 
 void debug_creq(CReq *client_rq);
 void debug_sreq(SReq *server_rq);

@@ -1,4 +1,8 @@
 #include "game.h"
+#include "debug.h"
+
+WINDOW *game_window;
+WINDOW *chat_window;
 
 int init_board(char *filename, GameBoard *board) {
     FILE *file = fopen(filename, "r");
@@ -41,57 +45,68 @@ void debug_board(GameBoard board) {
         for (size_t j = 0; j < board.width; ++j) {
             switch (board.cells[i][j]) {
                 case EMPTY:
-                    printf("_");
+                    dprintf(2, "_");
                     break;
                 case IWALL:
-                    printf("#");
+                    dprintf(2, "#");
                     break;
                 case DWALL:
-                    printf("+");
+                    dprintf(2, "+");
                     break;
                 case BOMB:
-                    printf("B");
+                    dprintf(2, "B");
                     break;
                 case EXPLOSE:
-                    printf("X");
+                    dprintf(2, "X");
                     break;
                 case PLAYER1:
-                    printf("1");
+                    dprintf(2, "1");
                     break;
                 case PLAYER2:
-                    printf("2");
+                    dprintf(2, "2");
                     break;
                 case PLAYER3:
-                    printf("3");
+                    dprintf(2, "3");
                     break;
                 case PLAYER4:
-                    printf("4");
+                    dprintf(2, "4");
                     break;
                 default:
-                    printf("?");
+                    dprintf(2, "?");
                     break;
             }
         }
-        printf("\n");
+        dprintf(2, "\n");
     }
     #endif
 }
 
-void init_game() {
+void init_game(uint8_t height, uint8_t width) {
     initscr();
     noecho();
+    cbreak();
     curs_set(FALSE);
     keypad(stdscr, TRUE);
-    timeout(100);
+    timeout(0);
+
+    game_window = newwin(height + 2, width + 2, 0, 0);
+    box(game_window, 0, 0);
+
+    chat_window = newwin(NB_LINES_CHAT, width + 2, height + 2, 0);
+    box(chat_window, 0, 0);
+    scrollok(chat_window, TRUE);
+    refresh();
 }
 
 void draw_board(GameBoard board) {
-    clear();
+    wclear(game_window);
 
-    for (size_t i = 0; i < board.height; ++i) {
-        for (size_t j = 0; j < board.width; ++j) {
+    size_t x, y;
+
+    for (x = 0; x < board.height; ++x) {
+        for (y = 0; y < board.width; ++y) {
             char symbol;
-            switch (board.cells[i][j]) {
+            switch (board.cells[x][y]) {
                 case EMPTY:
                     symbol = ' ';
                     break;
@@ -123,9 +138,50 @@ void draw_board(GameBoard board) {
                     symbol = '?';
                     break;
             }
-            mvprintw(i, j, "%c", symbol);
+            mvwprintw(game_window, x + 1, y + 1, "%c", symbol);
         }
     }
 
-    refresh();
+    box(game_window, 0, 0);
+    
+
+    wrefresh(game_window);
+    
+}
+
+void draw_tchat(Message message) {
+    wclear(chat_window);
+
+    int max_x, max_y;
+    getmaxyx(chat_window, max_y, max_x);
+
+    size_t x = 0;
+    size_t y = 1;
+
+    for(size_t i = 0; i < message.length; ++i) {
+        if (x >= max_x - 2) {
+            x = 0;
+            y++;
+            if (y >= max_y - 1) { 
+                wscrl(chat_window, 1);
+                y = max_y - 2;
+            }
+        }
+        mvwaddch(chat_window, y, x + 1, message.data[i]);
+        x++;
+    }
+
+    box(chat_window, 0, 0);
+    wrefresh(chat_window);
+}
+
+void clear_bombs_explosions(GameBoard *board) {
+    for(size_t i = 0; i < board->height; ++i) {
+        for (size_t j = 0; j < board->width; ++j) {
+            if(board->cells[i][j] == EXPLOSE) {
+                board->cells[i][j] = EMPTY;
+            }
+        }
+        
+    }
 }

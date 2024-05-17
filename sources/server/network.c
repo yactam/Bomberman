@@ -43,8 +43,30 @@ Buf_t hton_gridrq(SReq_Grid *grid_rq) {
     return bytes_rq;
 }
 
+Buf_t hton_cellsrq(SReq_Cell *cell_rq) {
+    Buf_t bytes_rq;
+    initbuf(&bytes_rq);
+
+    Header_t header = htons(cell_rq->header);
+    uint16_t num = htons(cell_rq->num);
+    uint8_t nb = cell_rq->nb;
+
+    appendbuf(&bytes_rq, &header, sizeof(header));
+    appendbuf(&bytes_rq, &num, sizeof(num));
+    appendbuf(&bytes_rq, &nb, sizeof(nb));
+
+    for(size_t i = 0; i < nb; ++i) {
+        appendbuf(&bytes_rq, &cell_rq->cells[i].coord.row, sizeof(cell_rq->cells[i].coord.row));
+        appendbuf(&bytes_rq, &cell_rq->cells[i].coord.col, sizeof(cell_rq->cells[i].coord.col));
+        appendbuf(&bytes_rq, &cell_rq->cells[i].content, sizeof(cell_rq->cells[i].content));
+    }
+
+    return bytes_rq;
+
+}
+
 CReq_Join ntoh_integrationrq(Buf_t *buf_rq) {
-    CReq_Join join;
+    CReq_Join join = {0};
     Header_t header;
     
     size_t start = 0;
@@ -52,6 +74,21 @@ CReq_Join ntoh_integrationrq(Buf_t *buf_rq) {
 
     join.header = ntohs(header);
     return join;
+}
+
+CReq_Play ntoh_ongamerq(Buf_t *buf_rq) {
+    CReq_Play play = {0};
+    Header_t header;
+    Message_t message;
+
+    size_t start = 0;
+    copyfrombuf(buf_rq, &start, sizeof(header), &header);
+    copyfrombuf(buf_rq, &start, sizeof(message), &message);
+
+    play.header = ntohs(header);
+    play.message = ntohs(message);
+
+    return play;
 }
 
 uint8_t recv_client_request(int sockfd, CReq *client_rq, size_t sto_recv) {
@@ -86,7 +123,7 @@ uint8_t recv_client_request(int sockfd, CReq *client_rq, size_t sto_recv) {
         client_rq->req.join = ntoh_integrationrq(&req_buf);
     } else {
         // TODO : continuer l'implementation avec toutes les requetes possibles 
-        printf("Not yet %d\n", client_rq->type);
+        log_info("Not yet %d\n", client_rq->type);
     }
 
     return 0;
@@ -107,7 +144,7 @@ uint8_t send_server_request(int sockfd, SReq *server_rq) {
         }
     } else {
         // TODO : À implementer avec toutes les autres requêtes
-        printf("Not yet %d\n", type);
+        log_info("Not yet %d\n", type);
     }
     return 0;
 }
@@ -125,9 +162,41 @@ uint8_t send_datagram(int sfd, struct sockaddr_in6 gradr, SReq *server_rq) {
             perror("Erreur send server request datagram grid");
             return 1;
         }
+    } else if(type == SDIFF_CASES) {
+        bytes_rq = hton_cellsrq(&server_rq->req.cell);
+
+        if(sendto(sfd, bytes_rq.content, bytes_rq.size, 0, (struct sockaddr*) &gradr, sizeof(gradr)) < 0) {
+            perror("Erreur send server request datagram grid");
+            return 1;
+        }
     } else {
         // TODO : À implementer avec toutes les autres requêtes
-        printf("Not yet %d\n", type);
+        log_info("Not yet %d\n", type);
     }
     return 0;
+}
+
+uint8_t recv_client_datagrams(int sfd, CReq *client_rq) {
+    Buf_t req_buf;
+    initbuf(&req_buf);
+
+    int rec = recvfrom(sfd, req_buf.content, MAX_BUFSIZE, 0, NULL, NULL);
+    if(rec < 0) {
+        return 1;
+    }
+    req_buf.size = rec;
+
+    Header_t header;
+    size_t start = 0;
+    copyfrombuf(&req_buf, &start, sizeof(header), &header);
+    client_rq->type = get_codereq(htons(header));
+    debug("Received client request of type %d", client_rq->type);
+
+    if(client_rq->type != CON_MODE4 && client_rq->type != CON_TEAMS) {
+        log_error("Type mismatch: received a '%d' packet but expected a '%d or %d' one.", client_rq->type, CON_MODE4, CON_TEAMS);
+        return 1;
+    }
+    client_rq->req.play = ntoh_ongamerq(&req_buf);
+
+    return 0;     
 }

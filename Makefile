@@ -22,18 +22,18 @@ client: $(CLIENT_EXECUTABLE)
 server: $(SERVER_EXECUTABLE)
 
 $(CLIENT_EXECUTABLE): $(CLIENT_OBJECTS)
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) -o $@ $^ $(CFLAGS)
 
 $(SERVER_EXECUTABLE): $(SERVER_OBJECTS)
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) -o $@ $^ $(CFLAGS)
 
 $(CLIENT_OBJDIR)/%.o: $(CLIENT_SRCDIR)/%.c
 	@mkdir -p $(CLIENT_OBJDIR)
-	$(CC) $(CFLAGS) -c -o $@ $<
+	$(CC) -c -o $@ $< $(CFLAGS)
 
 $(SERVER_OBJDIR)/%.o: $(SERVER_SRCDIR)/%.c
 	@mkdir -p $(SERVER_OBJDIR)
-	$(CC) $(CFLAGS) -c -o $@ $<
+	$(CC) -c -o $@ $< $(CFLAGS)
 
 clean:
 	rm -rf $(CLIENT_OBJDIR)/*.o $(SERVER_OBJDIR)/*.o $(CLIENT_EXECUTABLE) $(SERVER_EXECUTABLE)

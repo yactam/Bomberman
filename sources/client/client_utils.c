@@ -1,29 +1,47 @@
 #include <stdlib.h>
+#include <stdio.h>
 #include <arpa/inet.h>
 #include <string.h>
 #include <unistd.h>
+#include <netdb.h>
 #include "client/client_utils.h"
+#include "socket_utils.h"
 #include "debug.h"
 
-int init_client(uint16_t port_tcp, char *server_ip) {
+int init_client(char *port_tcp, char *hostname) {
 
-    int tcp_socket = socket(PF_INET6, SOCK_STREAM, 0);
-    if (tcp_socket < 0) {
-        perror("Error creating TCP socket");
+    struct addrinfo hints, *r, *p;
+    memset(&hints, 0, sizeof(struct addrinfo));
+    hints.ai_family = AF_INET6;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_flags = AI_V4MAPPED | AI_ALL;
+
+    int status = getaddrinfo(hostname, port_tcp, &hints, &r);
+    if (status != 0) {
+        dprintf(STDERR_FILENO, "getaddrinfo error: %s\n", gai_strerror(status));
         return -1;
     }
 
-    struct sockaddr_in6 server_tcp = {0};
-    server_tcp.sin6_family = AF_INET6;
-    inet_pton(AF_INET6, server_ip, &server_tcp.sin6_addr);
-    server_tcp.sin6_port = htons(port_tcp);
+	p = r;
+	int tcp_socket = -1;
+	while(p != NULL) {
+		tcp_socket = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
+		if (tcp_socket > 0) {
+			if (connect(tcp_socket, p->ai_addr, sizeof(struct sockaddr_in6)) == 0) {
+				break;
+			}
+		}
+        p = p->ai_next;
+	}
 
-    if (connect(tcp_socket, (struct sockaddr *)&server_tcp, sizeof(server_tcp)) == -1) {
-        perror("Error connecting to server");
-        return -1;
-    }
+    if (p == NULL) {
+		dprintf(STDERR_FILENO, "connection failed\n");
+		freeaddrinfo(r);
+		return -1;
+	}
 
-    return tcp_socket;
+    freeaddrinfo(r);
+	return tcp_socket;
 }
 
 int subscribe_multicast(uint16_t port_multicast, char* adr_multicast) {
@@ -40,7 +58,7 @@ int subscribe_multicast(uint16_t port_multicast, char* adr_multicast) {
     multicast_addr.sin6_addr = in6addr_any;
     multicast_addr.sin6_port = htons(port_multicast);
 
-    if(sock_reuse_addr(sock_multicast) < 0) {
+    if(set_reuseaddr(sock_multicast) < 0) {
         close(sock_multicast);
         exit(EXIT_FAILURE);
     }
@@ -51,12 +69,7 @@ int subscribe_multicast(uint16_t port_multicast, char* adr_multicast) {
         return -1;
     }
 
-    struct ipv6_mreq group = {0};
-    inet_pton(AF_INET6, adr_multicast, &(group.ipv6mr_multiaddr));
-    group.ipv6mr_interface = 0;
-
-    if (setsockopt(sock_multicast, IPPROTO_IPV6, IPV6_JOIN_GROUP, &group, sizeof(group)) < 0) {
-        perror("setsockopt erreur subscribe to group");
+    if(set_join_group(sock_multicast, adr_multicast)) {
         close(sock_multicast);
         return -1;
     }
@@ -105,13 +118,4 @@ UDP_Infos *init_udp_connection(uint16_t port_udp) {
     memcpy(&(udp_infos->server_addr), &serv_addr, sizeof(serv_addr));
 
     return udp_infos;
-}
-
-int sock_reuse_addr(int sock) {
-    int ok = 1;
-    if(setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &ok, sizeof(ok)) < 0) {
-        perror("Echec de SO_REUSEADDR");
-        return -1;
-    }
-    return 0;
 }

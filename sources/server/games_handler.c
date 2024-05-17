@@ -144,6 +144,7 @@ uint16_t generate_multicastPort() {
 }
 
 int remove_client(ServerGames **sg, uint16_t portudp, uint8_t id_player) {
+    debug("Call to remove client %d from game with udp port %d", id_player, portudp);
     ServerGames *server_games = *sg;
     if (server_games == NULL) {
         log_error("server_games est NULL");
@@ -158,9 +159,10 @@ int remove_client(ServerGames **sg, uint16_t portudp, uint8_t id_player) {
         for (size_t j = 0; j < game.nb_players; ++j) {
             debug("Lock server_games->games[%d] mutex", i);
             pthread_mutex_lock(&game.game_mtx);
-            if (game.players[j].player_id == id_player && game.game_id == portudp - PORTUDP) {
+            if (game.players[j].player_id == id_player && game.game_id == portudp - PORTUDP+1) {
                 set_player_status(sg, game.port_udp, id_player, DISCONNECTED);
                 game.nb_players--;
+                debug("Client removed");
                 pthread_mutex_unlock(&game.game_mtx);
                 debug("Unlocked server_games->games[%d] mutex", i);
                 pthread_mutex_unlock(&(server_games->sgames_mtx));
@@ -224,7 +226,6 @@ void* games_supervisor_handler(void* arg) {
             while (server_games->games[i].game_status == WAITING_CONNECTIONS) {
                 pthread_cond_wait(&server_games->games[i].game_cond, &server_games->games[i].game_mtx);
             }
-            pthread_mutex_unlock(&server_games->games[i].game_mtx);
 
             if(server_games->games[i].game_status == READY_TO_START) {
                 debug("Le serveur est prêt à lancer la partie %d", server_games->games[i].game_id);
@@ -232,13 +233,349 @@ void* games_supervisor_handler(void* arg) {
                 init_board("sources/maps/map1.txt", &server_games->games[i].game_board);
                 debug_board(server_games->games[i].game_board);
                 server_games->games[i].game_status = ON_GOING;
-                pthread_create(&server_games->games[i].multicast_thread, NULL, multicast_grid, (void*) &server_games->games[i]);
-                pthread_create(&server_games->games[i].recv_thread, NULL, recv_datas, (void *) &server_games->games[i]);
-                pthread_create(&server_games->games[i].updates_thread, NULL, multicast_updates, (void *) &server_games->games[i]);
+                pthread_create(&server_games->games[i].game_thread, NULL, launch_game, (void*) &server_games->games[i]);
+            } else if(server_games->games[i].game_status == GAME_OVER) {
+                debug("La partie %d est terminée", server_games->games[i].game_id);
+                pthread_join(server_games->games[i].game_thread, NULL);
+                // TODO Réinitialiser la partie pour qu'elle soit prête à etre utilisé aprés
             }
+
+            pthread_mutex_unlock(&server_games->games[i].game_mtx);
         }
         sleep(10);
     }
     return NULL;
 }
 
+size_t compare_boards(GameBoard board1, GameBoard board2) {
+    if (board1.height != board2.height || board1.width != board2.width) {
+        return 0;
+    }
+
+    size_t res = 0;
+
+    for (size_t i = 0; i < board1.height; ++i) {
+        for (size_t j = 0; j < board1.width; ++j) {
+            if (board1.cells[i][j] != board2.cells[i][j]) {
+                res++;
+            }
+        }
+    }
+
+    return res;
+}
+
+void init_players_positions(GameBoard board, player_pos_t *player_positions) {
+    for(size_t player = 0; player < NB_PLAYERS; ++player) {
+        for (size_t i = 0; i < board.height; ++i) {
+            for (size_t j = 0; j < board.width; ++j) {
+                if (board.cells[i][j] == player + PLAYER1) {
+                    player_positions[player].x = i;
+                    player_positions[player].y = j;
+                    break;
+                }
+            }
+        }
+    }
+}
+
+void process_players_actions(PlayerAction *actions, size_t nb_actions, player_pos_t *player_positions, BombInfo *bomb_infos, Game *game) {
+    debug("Appel à la fonction process players action avec nb_actions=%d", nb_actions);
+    bool new_bomb_drop[NB_PLAYERS] = {false};
+    PlayerAction last_move_action[NB_PLAYERS] = {0};
+    PlayerAction bomb_action[NB_PLAYERS] = {0};
+    int max_move_num[NB_PLAYERS];
+    bool undo_move[NB_PLAYERS] = {false};
+
+    GameBoard *board = &game->game_board;
+
+    if(nb_actions > 0) {
+        for(size_t i = 0; i < NB_PLAYERS; ++i) {
+            max_move_num[i] = -1;
+        }
+
+        uint8_t player_id;
+
+        for (size_t i = 0; i < nb_actions; ++i) {
+            PlayerAction action = actions[i];
+            player_id = action.paleyr_id;
+
+            log_info("player_id = %d", player_id);
+
+            switch (action.action) {
+                case GO_NORTH:
+                case GO_SOUTH:
+                case GO_EAST:
+                case GO_OUEST:
+                    if ((action.num > max_move_num[player_id]) || (max_move_num[player_id] == 8191 && max_move_num[player_id] < 1000)) {
+                        last_move_action[player_id] = action;
+                        max_move_num[player_id] = action.num;
+                        debug("L'action est un mouvement");
+                    }
+                    break;
+                case DROP_BOMB:
+                    if (!bomb_infos[player_id].bomb_dropped) {
+                        bomb_action[player_id] = action;
+                        new_bomb_drop[player_id] = true;
+                        debug("L'action est un placement de bomb");
+                    }
+                    break;
+                case UNDO:
+                    undo_move[player_id] = true;
+                    break;
+                default:
+                    debug("Type d'action non reconnu %d.\n", action.action);
+                    break;
+            }
+        }
+
+        pthread_mutex_lock(&game->game_mtx);
+
+        for(size_t player = 0; player < NB_PLAYERS; ++player) {
+            if (max_move_num[player] != -1 && game->players[player].player_status == PLAYING && !undo_move[player]) {
+                size_t player_x = player_positions[player].x;
+                size_t player_y = player_positions[player].y;
+
+                debug("The player is at position %d %d", player_x, player_y);
+
+                int desti = player_x;
+                int destj = player_y;
+
+                switch(last_move_action[player].action) {
+                    case GO_NORTH:
+                        desti -= 1;
+                        break;
+
+                    case GO_SOUTH:
+                        desti += 1;
+                        break;
+
+                    case GO_EAST:
+                        destj -= 1;
+                        break;
+
+                    case GO_OUEST:
+                        destj += 1;
+                        break;
+                }
+
+                if((desti >= 0 && desti < board->height && destj >= 0 && destj < board->width) && (board->cells[desti][destj] == EMPTY || board->cells[desti][destj] == BOMB)) {
+                    if(board->cells[player_x][player_y] != BOMB)
+                        board->cells[player_x][player_y] = EMPTY;
+                    if(board->cells[desti][destj] == EMPTY)
+                        board->cells[desti][destj] = player + PLAYER1;
+                    player_positions[player].x = desti;
+                    player_positions[player].y = destj;
+                }
+            }
+
+            if (new_bomb_drop[player] && game->players[player].player_status == PLAYING) {
+                int i = player_positions[player].x;
+                int j = player_positions[player].y;
+                debug("DROP BOMB AT %d %d", i, j);
+                board->cells[i][j] = BOMB;
+                bomb_infos[player_id].bomb_dropped = true;
+                bomb_infos[player_id].bomb_x = i;
+                bomb_infos[player_id].bomb_y = j;
+                bomb_infos[player_id].explosion_time = time(NULL) + EXPLOSION_DELAY;
+            }
+        }
+    }
+
+    for(size_t i = 0; i < NB_PLAYERS; ++i) {
+        if(bomb_infos[i].bomb_dropped && bomb_infos[i].explosion_time <= time(NULL)) {
+            handle_explosion(bomb_infos[i], game, player_positions);
+            bomb_infos[i].bomb_dropped = false;
+        }
+    }
+    debug_board(*board);
+    pthread_mutex_unlock(&game->game_mtx);
+}
+
+void handle_explosion(BombInfo bomb_info, Game * game, player_pos_t *player_positions) {
+    GameBoard* board = &(game->game_board);
+    int i = bomb_info.bomb_x;
+    int j = bomb_info.bomb_y;
+    board->cells[i][j] = EXPLOSE;
+
+    for (int dx = 0; dx <= 2; dx++) {
+        int x = i + dx;
+
+        debug("EXPLOSION: test %d %d", x, j);
+
+        if (x >= 0 && x < board->height) {
+            if (board->cells[x][j] == IWALL) {
+                break;
+            }
+
+            if (board->cells[x][j] == DWALL) {
+                board->cells[x][j] = EMPTY;
+                break;
+            }
+
+            if (board->cells[x][j] >= PLAYER1 && board->cells[x][j] <= PLAYER4) {
+                uint8_t player_id = board->cells[x][j] - PLAYER1;
+                // Éliminer le joueur
+                board->cells[x][j] = EMPTY;
+                game->players[player_id].player_status = DEAD;
+            }
+
+            for(size_t player = 0; player < NB_PLAYERS; player++) {
+                if(player_positions[player].x == x && player_positions[player].y == j) {
+                    game->players[player].player_status = DEAD;
+                }
+            } 
+        }
+    }
+
+    for (int dx = -1; dx >= -2; dx--) {
+        int x = i + dx;
+
+        debug("EXPLOSION: test %d %d", x, j);
+
+        if (x >= 0 && x < board->height) {
+            if (board->cells[x][j] == IWALL) {
+                break;
+            }
+
+            if (board->cells[x][j] == DWALL) {
+                board->cells[x][j] = EMPTY;
+                break;
+            }
+
+            if (board->cells[x][j] >= PLAYER1 && board->cells[x][j] <= PLAYER4) {
+                // Éliminer le joueur
+                uint8_t player_id = board->cells[x][j] - PLAYER1;
+                board->cells[x][j] = EMPTY;
+                game->players[player_id].player_status = DEAD;
+            }
+
+            for(size_t player = 0; player < NB_PLAYERS; player++) {
+                if(player_positions[player].x == x && player_positions[player].y == j) {
+                    game->players[player].player_status = DEAD;
+                }
+            }
+        }
+    }
+
+    for(int dy = 1; dy <= 2; dy++) {
+        int y = j + dy;
+
+        debug("EXPLOSION: test %d %d", i, y);
+
+        if(y >= 0 && y < board->width) {
+            if (board->cells[i][y] == IWALL) {
+                break;
+            }
+
+            if (board->cells[i][y] == DWALL) {
+                board->cells[i][y] = EMPTY;
+                break;
+            }
+
+            if (board->cells[i][y] >= PLAYER1 && board->cells[i][y] <= PLAYER4) {
+                // Éliminer le joueur
+                uint8_t player_id = board->cells[i][y] - PLAYER1;
+                board->cells[i][y] = EMPTY;
+                game->players[player_id].player_status = DEAD;
+            }
+
+            for(size_t player = 0; player < NB_PLAYERS; player++) {
+                if(player_positions[player].x == i && player_positions[player].y == y) {
+                    game->players[player].player_status = DEAD;
+                }
+            }
+        }
+    }
+
+    for (int dy = -1; dy >= -2; dy--) {
+        int y = j + dy;
+
+        debug("EXPLOSION: test %d %d", i, y);
+
+        if(y >= 0 && y < board->width) {
+            if (board->cells[i][y] == IWALL) {
+                break;
+            }
+
+            if (board->cells[i][y] == DWALL) {
+                board->cells[i][y] = EMPTY;
+                break;
+            }
+
+            if (board->cells[i][y] >= PLAYER1 && board->cells[i][y] <= PLAYER4) {
+                // Éliminer le joueur
+                uint8_t player_id = board->cells[i][y] - PLAYER1;
+                board->cells[i][y] = EMPTY;
+                game->players[player_id].player_status = DEAD;
+            }
+
+            for(size_t player = 0; player < NB_PLAYERS; player++) {
+                if(player_positions[player].x == i && player_positions[player].y == y) {
+                    game->players[player].player_status = DEAD;
+                }
+            }
+        }
+    }
+
+    for(int dx = -1; dx <= 1; dx++) {
+        for(int dy = -1; dy <= 1; dy++) {
+
+            if(dx == 0 || dy == 0) continue;
+
+            int x = i + dx;
+            int y = j + dy;
+
+            if(x >= 0 && x < board->height && y >= 0 && y < board->width) {
+                if (board->cells[x][y] == DWALL) {
+                    board->cells[x][y] = EMPTY;
+                } else if (board->cells[x][y] >= PLAYER1 && board->cells[x][y] <= PLAYER4) {
+                    // Éliminer le joueur
+                    uint8_t player_id = board->cells[x][y] - PLAYER1;
+                    board->cells[x][y] = EMPTY;
+                    game->players[player_id].player_status = DEAD;
+                }
+
+                for(size_t player = 0; player < NB_PLAYERS; player++) {
+                    if(player_positions[player].x == x && player_positions[player].y == y) {
+                        game->players[player].player_status = DEAD;
+                    }
+                }
+            }
+        }
+    }
+}
+
+int check_game_over(Game *game) {
+    game_mode_t mode = game->game_mode;
+    if(mode == MODE4) {
+        int players_alive = 0;
+        int id_winner = 0;
+        for (int i = 0; i < NB_PLAYERS; ++i) {
+            if (game->players[i].player_status != DEAD) {
+                players_alive++;
+                id_winner = game->players[i].player_id;
+            }
+        }
+        if(players_alive <= 1) {
+            return id_winner;
+        }
+        return -1;
+    } else {
+        int team1_dead = 0;
+        int team2_dead = 0;
+
+        for (int i = 0; i < NB_PLAYERS; ++i) {
+            if (game->players[i].player_status == DEAD) {
+                if (game->players[i].player_id % 2 == 0) {
+                    team1_dead++;
+                } else {
+                    team2_dead++;
+                }
+            }
+        }
+        if(team2_dead == 2) return 0;
+        if(team1_dead == 2) return 1;
+        return -1;
+    }
+}

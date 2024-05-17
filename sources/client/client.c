@@ -1,17 +1,20 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include <poll.h>
+#include <ncurses.h>
 #include "debug.h"
 #include "client/client_requests.h"
 #include "client/network.h"
 #include "client/client_utils.h"
 #include "game.h"
 
-#define SERVER_IP "::1"
-#define TCP_PORT 8888
+#define SERVER_NAME "::1"
+#define TCP_PORT "8888"
+#define TIMEOUT -1
 
 int main(int argc, char** argv) {
-    int tcp_socket = init_client(TCP_PORT, SERVER_IP);
+    int tcp_socket = init_client(TCP_PORT, SERVER_NAME);
 
     if(tcp_socket < 0) {
         perror("Erreur while initialising client connection");
@@ -58,6 +61,10 @@ int main(int argc, char** argv) {
         exit(EXIT_FAILURE);
     }
 
+    int sock_udp = udp_infos->sock_udp;
+    struct sockaddr_in6 server_addr = udp_infos->server_addr;
+    free(udp_infos);
+
     CReq conf_rq = {0};
     create_confrq(&conf_rq, gametype, id_player, id_team);
     debug_creq(&conf_rq);
@@ -71,35 +78,114 @@ int main(int argc, char** argv) {
     printf("Le client a confirmé la connexion au serveur. en attente d'autres joueurs...\n");
 
     GameBoard board = {0};
+    Message tchat = {0};
     uint16_t num = 0;
     bool game_initilized = false;
 
+    struct pollfd fds[2];
+    fds[0].fd = sock_multicast;
+    fds[0].events = POLLIN;
+    fds[1].fd = STDIN_FILENO;
+    fds[1].events = POLLIN;
+    int ret_poll = 0;
+    int pressed_key = 0;
+
     while(1) {
-        SReq grid_rq = {0};
-        if(recv_server_datagram(sock_multicast, &grid_rq, sizeof(grid_rq.req.grid))) {
-            perror("Erreur recv client grid request");
-        }
+        ret_poll = poll(fds, 2, TIMEOUT);
+        if(ret_poll == -1) {
+            perror("Erreur lors de l'appel à poll");
+            break;
+        } else if(ret_poll > 0) {
+            if(fds[0].revents & POLLIN) {
+                SReq server_rq = {0};
+                if(recv_server_datagram(sock_multicast, &server_rq, sizeof(server_rq.req.grid))) {
+                    perror("Erreur recv client grid request");
+                }
 
-        debug_sreq(&grid_rq);
+                debug_sreq(&server_rq);
 
-        if(!game_initilized) {
-            init_game();
-            game_initilized = true;
-        }
+                if(server_rq.type == SDIFF_GRID) {
+                    log_info("IT A MULTICAST OF ALL THE GRID");
+                    board.height = server_rq.req.grid.hauteur;
+                    board.width = server_rq.req.grid.largeur;
 
-        board.height = grid_rq.req.grid.hauteur;
-        board.width = grid_rq.req.grid.largeur;
-        for(size_t i = 0; i < board.height; ++i) {
-            for(size_t j = 0; j < board.width; ++j) {
-                board.cells[i][j] = grid_rq.req.grid.cells[i][j];
+                    if(!game_initilized) {
+                        init_game(board.height, board.width);
+                        game_initilized = true;
+                    }
+
+                    
+                    for(size_t i = 0; i < board.height; ++i) {
+                        for(size_t j = 0; j < board.width; ++j) {
+                            board.cells[i][j] = server_rq.req.grid.cells[i][j];
+                        }
+                    }
+                } else if(server_rq.type == SDIFF_CASES) {
+                    log_info("IT A MULTICAST OF SOME CELLS");
+                    for(size_t i = 0; i< server_rq.req.cell.nb; ++i) {
+                        uint8_t x = server_rq.req.cell.cells[i].coord.row;
+                        uint8_t y = server_rq.req.cell.cells[i].coord.col;
+                        uint8_t content = server_rq.req.cell.cells[i].content;
+                        board.cells[x][y] = content;
+                    }
+                } else {
+                    log_error("%d", server_rq.type);
+                }
+
+                draw_board(board);
+                draw_tchat(tchat);
+            } else if(fds[1].revents & POLLIN) {
+                pressed_key = getch();
+                CReq ongame_req = {0};
+                debug("Le client a tapé sur la touche %d\n", pressed_key);
+                
+                switch(pressed_key) {
+                    case KEY_UP:
+                        create_ongamerq(&ongame_req, gametype, id_player, id_team, num, GO_NORTH);
+                        break;
+                    case KEY_DOWN:
+                        create_ongamerq(&ongame_req, gametype, id_player, id_team, num, GO_SOUTH);
+                        break;
+                    case KEY_RIGHT:
+                        create_ongamerq(&ongame_req, gametype, id_player, id_team, num, GO_OUEST);
+                        break;
+                    case KEY_LEFT:
+                        create_ongamerq(&ongame_req, gametype, id_player, id_team, num, GO_EAST);
+                        break;
+                    case '!':
+                        create_ongamerq(&ongame_req, gametype, id_player, id_team, num, DROP_BOMB);
+                        break;
+                    case '$':
+                        create_ongamerq(&ongame_req, gametype, id_player, id_team, num, UNDO);
+                        break;
+                    case KEY_BACKSPACE:
+                        if(tchat.length > 0) {
+                            tchat.data[tchat.length - 1] = 0;
+                            tchat.length--;
+                            draw_tchat(tchat);
+                        }
+                        break;
+                    case KEY_ENTER:
+                        // Envoyer le message du tchat
+                        break;
+                    default:
+                        if(tchat.length == 0) {
+                            tchat.data[tchat.length++] = '>';
+                        }
+                        if(tchat.length < MAX_MESS_LENGTH) {
+                            tchat.data[tchat.length++] = pressed_key;
+                            draw_tchat(tchat);
+                        }
+                        break;
+                }
+                num = (num + 1) % (1 << CNUM_LEN);
+
+                debug_creq(&ongame_req);
+                send_datagram(sock_udp, server_addr, &ongame_req);
             }
         }
+        
 
-        draw_board(board);
-
-        CReq ongamerq = {0};
-        create_ongamerq(&ongamerq, gametype, id_player, id_team, num++, GO_NORTH);
-        send_datagram(udp_infos->sock_udp, udp_infos->server_addr, &ongamerq);
     }
 
     endwin();
