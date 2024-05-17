@@ -136,27 +136,27 @@ int main(int argc, char** argv) {
                 draw_tchat(*tchat);
             } else if(fds[1].revents & POLLIN) {
                 pressed_key = getch();
-                CReq ongame_req = {0};
+                CReq client_req = {0};
                 debug("Le client a tapé sur la touche %d\n", pressed_key);
                 
                 switch(pressed_key) {
                     case KEY_UP:
-                        create_ongamerq(&ongame_req, gametype, id_player, id_team, num, GO_NORTH);
+                        create_ongamerq(&client_req, gametype, id_player, id_team, num, GO_NORTH);
                         break;
                     case KEY_DOWN:
-                        create_ongamerq(&ongame_req, gametype, id_player, id_team, num, GO_SOUTH);
+                        create_ongamerq(&client_req, gametype, id_player, id_team, num, GO_SOUTH);
                         break;
                     case KEY_RIGHT:
-                        create_ongamerq(&ongame_req, gametype, id_player, id_team, num, GO_OUEST);
+                        create_ongamerq(&client_req, gametype, id_player, id_team, num, GO_OUEST);
                         break;
                     case KEY_LEFT:
-                        create_ongamerq(&ongame_req, gametype, id_player, id_team, num, GO_EAST);
+                        create_ongamerq(&client_req, gametype, id_player, id_team, num, GO_EAST);
                         break;
                     case '!':
-                        create_ongamerq(&ongame_req, gametype, id_player, id_team, num, DROP_BOMB);
+                        create_ongamerq(&client_req, gametype, id_player, id_team, num, DROP_BOMB);
                         break;
                     case '$':
-                        create_ongamerq(&ongame_req, gametype, id_player, id_team, num, UNDO);
+                        create_ongamerq(&client_req, gametype, id_player, id_team, num, UNDO);
                         break;
                     case KEY_BACKSPACE:
                         if(tchat->len > 0) {
@@ -165,11 +165,9 @@ int main(int argc, char** argv) {
                             draw_tchat(*tchat);
                         }
                         break;
-                    case '*':
-                        sendMessage(tchat,tcp_socket);
+                    case KEY_ENTER:
+                        create_chatrq(&client_req, id_player, id_team,tchat,CALL_CHAT);
                         clearMessage(tchat);
-                        endwin();
-                        return 0;
                         break;
                     default:
                         if(tchat->len == 0) {
@@ -183,8 +181,13 @@ int main(int argc, char** argv) {
                 }
                 num = (num + 1) % (1 << CNUM_LEN);
 
-                debug_creq(&ongame_req);
-                send_datagram(sock_udp, server_addr, &ongame_req);
+                debug_creq(&client_req);
+                if(client_req.type == CALL_CHAT||client_req.type == CCOP_CHAT){
+                    sendMessage(&client_req,tcp_socket);
+                }
+                else{
+                     send_datagram(sock_udp, server_addr, &client_req);
+                }
             }
         }
         

@@ -101,26 +101,44 @@ CReq_Play ntoh_ongamerq(Buf_t *buf_rq) {
     return play;
 }
 
-uint8_t recv_client_request(int sockfd, CReq *client_rq, size_t sto_recv) {
-    Buf_t req_buf;
-    initbuf(&req_buf);
+Creq_Tchat ntoh_tchat(Buf_t *buf_rq){
+    Creq_Tchat tchat = {0};
+    Header_t header;
+    
+    size_t start = 0;
+    copyfrombuf(buf_rq, &start, sizeof(header), &header);
+    copyfrombuf(buf_rq, &start, sizeof(tchat.len), &tchat.len);
+    copyfrombuf(buf_rq, &start, tchat.len, tchat.data);
+    
+    return tchat;
+}
+
+Buf_t* recv_tcp(int sockfd, size_t sto_recv, Buf_t *req_buf){
+    
+    initbuf(req_buf);
 
     size_t read = 0;
     while(read < sto_recv) {
-        int rec = recv(sockfd, req_buf.content + read, sto_recv - read, 0);
+        int rec = recv(sockfd, req_buf->content + read, sto_recv - read, 0);
         if(rec < 0) {
             perror("Erreur recv");
-            return 1;
+            return NULL;
         }
         read += rec;
         debug("%d octect reçue, au total: %d, à recevoir: %d", rec, read, sto_recv);
         if(rec == 0) {
             log_info("Le client s'est déconnecté");
-            return 1;
+            return NULL;
         }
     }
 
-    req_buf.size += read;
+    req_buf->size += read;
+    return req_buf;
+}
+
+uint8_t recv_client_request(int sockfd, CReq *client_rq) {
+    Buf_t req_buf;
+    if(recv_tcp(sockfd, sizeof(Header_t), &req_buf)==NULL) return 1;
 
     Header_t header;
     size_t start = 0;
@@ -131,32 +149,19 @@ uint8_t recv_client_request(int sockfd, CReq *client_rq, size_t sto_recv) {
 
     if(client_rq->type == CREQ_MODE4 || client_rq->type == CREQ_TEAMS || client_rq->type == CCONF_MODE4 || client_rq->type == CCONF_TEAMS) {
         client_rq->req.join = ntoh_integrationrq(&req_buf);
-    } else if(client_rq->type == CALL_CHAT){
-        debug("recv fctn");
-        client_rq->req.tchat.header =get_header(&req_buf);
-        u_int8_t size = 0;
-        recv(sockfd,&size,sizeof(u_int8_t),0);
-        debug("message size %d",size);
-        //char* buf = malloc(size*sizeof(char));
-        size_t recvd = 0;
-        while(recvd<size){
-            int rec = recv(socket,(client_rq->req.tchat.data)+recvd,size,0);
-            if(rec < 0) {
-                perror("Erreur recv");
-                return 1;
-            }
-            recvd += rec;
-            if(rec==0){
-                log_info("client disconected");
-                return 1;
-            }
-        }
-        client_rq -> req.tchat.len = size;
+    } else if(client_rq->type == CALL_CHAT||CCOP_CHAT){
+        Buf_t tchat_buf;
+        u_int8_t len;
+        recv_tcp(sockfd,sizeof(u_int8_t),&tchat_buf);
+        appendbuf(&req_buf,&tchat_buf,sizeof(tchat_buf));
+        copyfrombuf(&req_buf,&start,sizeof(u_int8_t),&len);
+        recv_tcp(sockfd,len,&tchat_buf);
+        appendbuf(&req_buf,&tchat_buf,len);
+        client_rq->req.tchat = ntoh_tchat(&req_buf);
         //client_rq -> req.tchat.data = buf;
         log_info("message reçu: %s", client_rq->req.tchat.data);
     }
     else {
-        debug("aled fctn");
         // TODO : continuer l'implementation avec toutes les requetes possibles 
         log_info("Not yet %d\n", client_rq->type);
     }

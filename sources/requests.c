@@ -136,8 +136,8 @@ void debug_creq(CReq *client_rq) {
         debug_cjoinrq(&client_rq->req.join);
     } else if(client_rq->type == CON_MODE4 || client_rq->type == CON_TEAMS) {
         debug_congamerq(&client_rq->req.play);
-    } else {
-        // TODO
+    } else if(client_rq->type == CALL_CHAT || client_rq->type == CCOP_CHAT){
+        //TODO debug
     }
 }
 
@@ -146,9 +146,9 @@ void debug_sreq(SReq *server_rq) {
     if(server_rq->type == SREQ_MODE4 || server_rq->type == SREQ_TEAMS) {
         debug_sstartrq(&server_rq->req.start);
     } else if(server_rq->type == SDIFF_GRID) {
-        debug_sgridrq(&server_rq->req.grid);
+        //debug_sgridrq(&server_rq->req.grid);
     } else if(server_rq->type == SDIFF_CASES) {
-        debug_scasesrq(&server_rq->req.cell);
+        //debug_scasesrq(&server_rq->req.cell);
     } else {
         log_error("NOT YET %d", server_rq->type);
     }

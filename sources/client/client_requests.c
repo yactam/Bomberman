@@ -51,3 +51,12 @@ int create_ongamerq(CReq *clientrq, game_mode_t game_mode, uint8_t id_player, ui
     clientrq->req.play.message = message;
     return 0;
 }
+
+int create_chatrq(CReq *clientrq, u_int8_t id_player, u_int8_t id_team, Message *tchat, u_int16_t codereq){
+    Header_t header = (codereq | (id_player << CODEREQ_LEN) | (id_team << (CODEREQ_LEN + ID_LEN)));
+    clientrq->type = codereq;
+    clientrq->req.tchat.header = header;
+    clientrq->req.tchat.len = tchat->len;
+    memcpy(clientrq->req.tchat.data,tchat->data,tchat->len);
+    return 0;
+}
