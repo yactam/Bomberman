@@ -90,7 +90,14 @@ void* launch_game(void* args) {
         perror("Erreur lors de l'initialisation de la connexion udp dans le serveur");
         return NULL;
     }
-
+    void initMessage(Message* msg, u_int8_t id_player, u_int8_t id_team){
+        msg = malloc(sizeof(Message));
+        msg-> codereq =CODEREQ_ALL_PLAYERS ;
+        msg->id = id_player;
+        msg->eq = id_team;
+        msg->len = 0;
+        msg->data = malloc(256);
+    }
     int sock_udp = udp_infos->sock_udp;
     struct sockaddr_in6 serv_addr = udp_infos->server_addr;
     free(udp_infos); 
@@ -133,7 +140,7 @@ void* launch_game(void* args) {
             return NULL;
         } else if(ret_poll == 0) {
             // traiter les actions
-            process_players_actions(players_actions, nb_actions, player_positions, bombs_infos, &game);
+            int winner = process_players_actions(players_actions, nb_actions, player_positions, bombs_infos, &game);
             board = game.game_board;
             nb_actions = 0;
             memset(players_actions, 0, sizeof(players_actions));
@@ -161,7 +168,7 @@ void* launch_game(void* args) {
             clear_bombs_explosions(&game.game_board);
             pthread_mutex_unlock(&game.game_mtx);
             pthread_mutex_lock(&game.game_mtx);
-            int winner = check_game_over(&game);
+            //int winner = check_game_over(&game);
             pthread_mutex_unlock(&game.game_mtx);
             if(winner != -1) {
                 debug("CHECK GAME OVER THERE IS A WINNER %d", winner);

@@ -76,6 +76,16 @@ CReq_Join ntoh_integrationrq(Buf_t *buf_rq) {
     return join;
 }
 
+Header_t get_header(Buf_t *buf_rq){
+    
+    Header_t header;
+    
+    size_t start = 0;
+    copyfrombuf(buf_rq, &start, sizeof(header), &header);
+    
+    return ntohs(header);
+}
+
 CReq_Play ntoh_ongamerq(Buf_t *buf_rq) {
     CReq_Play play = {0};
     Header_t header;
@@ -91,26 +101,48 @@ CReq_Play ntoh_ongamerq(Buf_t *buf_rq) {
     return play;
 }
 
-uint8_t recv_client_request(int sockfd, CReq *client_rq, size_t sto_recv) {
-    Buf_t req_buf;
-    initbuf(&req_buf);
+Creq_Tchat ntoh_tchat(Buf_t *buf_rq){
+    Creq_Tchat tchat = {0};
+    Header_t header;
+    
+    size_t start = 0;
+    copyfrombuf(buf_rq, &start, sizeof(header), &header);
+    copyfrombuf(buf_rq, &start, sizeof(tchat.len), &tchat.len);
+    copyfrombuf(buf_rq, &start, tchat.len, tchat.data);
+
+    tchat.header = ntohs(header);
+    
+    return tchat;
+}
+
+Buf_t* recv_tcp(int sockfd, size_t sto_recv, Buf_t *req_buf){
+    
+    initbuf(req_buf);
 
     size_t read = 0;
     while(read < sto_recv) {
-        int rec = recv(sockfd, req_buf.content + read, sto_recv - read, 0);
+        int rec = recv(sockfd, req_buf->content + read, sto_recv - read, 0);
         if(rec < 0) {
             perror("Erreur recv");
-            return 1;
+            return NULL;
         }
         read += rec;
         debug("%d octect reçue, au total: %d, à recevoir: %d", rec, read, sto_recv);
         if(rec == 0) {
             log_info("Le client s'est déconnecté");
-            return 1;
+            return NULL;
         }
     }
 
-    req_buf.size += read;
+    req_buf->size += read;
+    return req_buf;
+}
+
+uint8_t recv_client_request(int sockfd, CReq *client_rq) {
+    Buf_t req_buf;
+
+    if(recv_tcp(sockfd, sizeof(Header_t), &req_buf) == NULL)
+        return 1;
 
     Header_t header;
     size_t start = 0;
@@ -121,7 +153,21 @@ uint8_t recv_client_request(int sockfd, CReq *client_rq, size_t sto_recv) {
 
     if(client_rq->type == CREQ_MODE4 || client_rq->type == CREQ_TEAMS || client_rq->type == CCONF_MODE4 || client_rq->type == CCONF_TEAMS) {
         client_rq->req.join = ntoh_integrationrq(&req_buf);
-    } else {
+    } else if(client_rq->type == CALL_CHAT || client_rq->type == CCOP_CHAT){
+        Buf_t tchat_buf;
+        size_t tchat_start = 0;
+        u_int8_t len;
+
+        recv_tcp(sockfd, sizeof(uint8_t), &tchat_buf);
+        appendbuf(&req_buf, tchat_buf.content, sizeof(uint8_t));
+        copyfrombuf(&tchat_buf, &tchat_start, sizeof(uint8_t), &len);
+
+        recv_tcp(sockfd, len, &tchat_buf);
+        appendbuf(&req_buf, &tchat_buf.content, len);
+
+        client_rq->req.tchat = ntoh_tchat(&req_buf);
+    }
+    else {
         // TODO : continuer l'implementation avec toutes les requetes possibles 
         log_info("Not yet %d\n", client_rq->type);
     }
@@ -142,11 +188,19 @@ uint8_t send_server_request(int sockfd, SReq *server_rq) {
             perror("Erreur send server request start");
             return 1;
         }
-    } else {
+    }else if(type == CALL_CHAT){
+
+    } 
+    
+    else {
         // TODO : À implementer avec toutes les autres requêtes
         log_info("Not yet %d\n", type);
     }
     return 0;
+}
+
+u_int8_t send_server_tchat(int socket, SReq *msg){
+
 }
 
 uint8_t send_datagram(int sfd, struct sockaddr_in6 gradr, SReq *server_rq) {

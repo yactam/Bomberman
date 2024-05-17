@@ -78,7 +78,7 @@ int main(int argc, char** argv) {
     printf("Le client a confirmé la connexion au serveur. en attente d'autres joueurs...\n");
 
     GameBoard board = {0};
-    Message tchat = {0};
+    Message *tchat = initMessage(id_player,id_team);
     uint16_t num = 0;
     bool game_initilized = false;
 
@@ -133,55 +133,65 @@ int main(int argc, char** argv) {
                 }
 
                 draw_board(board);
-                draw_tchat(tchat);
+                draw_tchat(*tchat);
             } else if(fds[1].revents & POLLIN) {
                 pressed_key = getch();
-                CReq ongame_req = {0};
+                CReq client_req = {0};
                 debug("Le client a tapé sur la touche %d\n", pressed_key);
                 
                 switch(pressed_key) {
                     case KEY_UP:
-                        create_ongamerq(&ongame_req, gametype, id_player, id_team, num, GO_NORTH);
+                        create_ongamerq(&client_req, gametype, id_player, id_team, num, GO_NORTH);
                         break;
                     case KEY_DOWN:
-                        create_ongamerq(&ongame_req, gametype, id_player, id_team, num, GO_SOUTH);
+                        create_ongamerq(&client_req, gametype, id_player, id_team, num, GO_SOUTH);
                         break;
                     case KEY_RIGHT:
-                        create_ongamerq(&ongame_req, gametype, id_player, id_team, num, GO_OUEST);
+                        create_ongamerq(&client_req, gametype, id_player, id_team, num, GO_OUEST);
                         break;
                     case KEY_LEFT:
-                        create_ongamerq(&ongame_req, gametype, id_player, id_team, num, GO_EAST);
+                        create_ongamerq(&client_req, gametype, id_player, id_team, num, GO_EAST);
                         break;
                     case '!':
-                        create_ongamerq(&ongame_req, gametype, id_player, id_team, num, DROP_BOMB);
+                        create_ongamerq(&client_req, gametype, id_player, id_team, num, DROP_BOMB);
                         break;
                     case '$':
-                        create_ongamerq(&ongame_req, gametype, id_player, id_team, num, UNDO);
+                        create_ongamerq(&client_req, gametype, id_player, id_team, num, UNDO);
                         break;
                     case KEY_BACKSPACE:
-                        if(tchat.length > 0) {
-                            tchat.data[tchat.length - 1] = 0;
-                            tchat.length--;
-                            draw_tchat(tchat);
+                        if(tchat->len > 0) {
+                            tchat->data[tchat->len - 1] = 0;
+                            tchat->len--;
+                            draw_tchat(*tchat);
                         }
                         break;
-                    case KEY_ENTER:
-                        // Envoyer le message du tchat
+                    case '*':
+                        log_error("TCHAT REQUEST FROM CLIENT AFTER TYPING *");
+                        create_chatrq(&client_req, id_player, id_team, tchat, CALL_CHAT);
+                        clearMessage(tchat);
                         break;
                     default:
-                        if(tchat.length == 0) {
-                            tchat.data[tchat.length++] = '>';
+                        if(tchat->len == 0) {
+                            tchat->data[tchat->len++] = '>';
                         }
-                        if(tchat.length < MAX_MESS_LENGTH) {
-                            tchat.data[tchat.length++] = pressed_key;
-                            draw_tchat(tchat);
+                        if(tchat->len < MAX_MESS_LENGTH) {
+                            tchat->data[tchat->len++] = pressed_key;
+                            draw_tchat(*tchat);
                         }
                         break;
                 }
                 num = (num + 1) % (1 << CNUM_LEN);
 
-                debug_creq(&ongame_req);
-                send_datagram(sock_udp, server_addr, &ongame_req);
+                if(client_req.type != 0) {
+                    debug_creq(&client_req);
+                    if(client_req.type == CALL_CHAT || client_req.type == CCOP_CHAT) {
+                        debug("Envoyer une requete TCHAT");
+                        send_client_request(tcp_socket, &client_req);
+                    } else {
+                        send_datagram(sock_udp, server_addr, &client_req);
+                    }
+                }
+                
             }
         }
         

@@ -64,8 +64,8 @@ void set_player_status(ServerGames**, uint16_t, uint8_t, player_status_t);
 void* games_supervisor_handler(void* arg);
 size_t compare_boards(GameBoard board1, GameBoard board2);
 void init_players_positions(GameBoard board, player_pos_t *player_positions);
-void process_players_actions(PlayerAction *actions, size_t nb_actions, player_pos_t *player_positions, BombInfo *bomb_infos, Game *game);
-void handle_explosion(BombInfo bomb_info, Game * game, player_pos_t *player_positions);
+int process_players_actions(PlayerAction *actions, size_t nb_actions, player_pos_t *player_positions, BombInfo *bomb_infos, Game *game);
+int handle_explosion(BombInfo *bomb_infos,size_t bomb_pos, Game * game, player_pos_t *player_positions);
 int check_game_over(Game *game);
 
 #endif

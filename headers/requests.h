@@ -44,7 +44,7 @@
 #define MAX_HEIGHT 256
 
 
-typedef enum {
+typedef enum{
 	GO_NORTH=0,
 	GO_EAST=1,
 	GO_SOUTH=2,
@@ -53,15 +53,7 @@ typedef enum {
 	UNDO=5
 } action_t;
 
-typedef enum {
-    DISCONNECTED = 0,
-    CONNECTING,
-    READY,
-    PLAYING,
-    DEAD
-} player_status_t;
-
-typedef enum {
+typedef enum{
 	EMPTY=0,
 	IWALL=1,
 	DWALL=2,
@@ -192,6 +184,7 @@ uint16_t get_id(Header_t header);
 uint16_t get_eq(Header_t header);
 uint8_t get_action(Message_t message);
 uint16_t get_num(Message_t message);
+
 
 void debug_creq(CReq *client_rq);
 void debug_sreq(SReq *server_rq);

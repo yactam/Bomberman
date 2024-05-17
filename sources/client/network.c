@@ -26,6 +26,18 @@ Buf_t hton_ongamerq(CReq_Play *play_rq) {
     return buf;
 }
 
+Buf_t hton_tchat(Creq_Tchat *tchat_rq){
+    Buf_t buf;
+    initbuf(&buf);
+
+    Header_t header = htons(tchat_rq->header);
+    appendbuf(&buf, &header, sizeof(header));
+    appendbuf(&buf,&tchat_rq->len,sizeof(tchat_rq->len));
+    appendbuf(&buf,tchat_rq->data,tchat_rq->len);
+    
+    return buf;
+}
+
 SReq_Start ntoh_start(Buf_t *start) {
     SReq_Start start_rq = {0};
 
@@ -47,6 +59,7 @@ SReq_Start ntoh_start(Buf_t *start) {
 
     return start_rq;
 }
+
 
 SReq_Grid ntoh_grid(Buf_t *grid) {
     SReq_Grid grid_rq = {0};
@@ -111,7 +124,10 @@ uint8_t send_client_request(int sockfd, CReq *client_rq) {
 
     if(client_rq->type == CREQ_MODE4 || client_rq->type == CREQ_TEAMS || client_rq->type == CCONF_MODE4 || client_rq->type == CCONF_TEAMS) {
         bytes_rq = hton_integrationrq(&client_rq->req.join);
-    } else {
+    } else if(client_rq->type==CALL_CHAT||client_rq->type==CCOP_CHAT){
+        bytes_rq = hton_tchat(&client_rq->req.tchat);
+    }
+    else{
         // TODO : à implementer
         printf("send_client_request TODO\n");
     }
@@ -122,6 +138,7 @@ uint8_t send_client_request(int sockfd, CReq *client_rq) {
 
     return 0;
 }
+
 
 uint8_t recv_server_request(int sockfd, SReq *server_rq, size_t sto_recv) {
     Buf_t buf_recv;

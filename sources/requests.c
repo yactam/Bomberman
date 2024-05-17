@@ -91,6 +91,13 @@ void debug_congamerq(CReq_Play *ongame_rq) {
     debug_message(ongame_rq->message);
 }
 
+void debug_cchatrq(Creq_Tchat *chat_rq) {
+    debug("**** CLIENT TCHAT REQUEST ****");
+    debug_header(chat_rq->header);
+    debug("LEN  : %d", chat_rq->len);
+    debug("DATA : %s", chat_rq->data);
+}
+
 void debug_sstartrq(SReq_Start *start_rq) {
     debug("**** SERVER START REQUEST ****");
     debug_header(start_rq->header);
@@ -136,8 +143,8 @@ void debug_creq(CReq *client_rq) {
         debug_cjoinrq(&client_rq->req.join);
     } else if(client_rq->type == CON_MODE4 || client_rq->type == CON_TEAMS) {
         debug_congamerq(&client_rq->req.play);
-    } else {
-        // TODO
+    } else if(client_rq->type == CALL_CHAT || client_rq->type == CCOP_CHAT){
+        debug_cchatrq(&client_rq->req.tchat);
     }
 }
 

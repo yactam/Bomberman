@@ -7,6 +7,7 @@
 #include "client/client_utils.h"
 #include "socket_utils.h"
 #include "debug.h"
+#include "game.h"
 
 int init_client(char *port_tcp, char *hostname) {
 
@@ -118,4 +119,22 @@ UDP_Infos *init_udp_connection(uint16_t port_udp) {
     memcpy(&(udp_infos->server_addr), &serv_addr, sizeof(serv_addr));
 
     return udp_infos;
+}
+
+Message *initMessage(u_int8_t id_player, u_int8_t id_team){
+    Message *msg = malloc(sizeof(Message));
+    msg-> codereq =CODEREQ_ALL_PLAYERS ;
+    msg->id = id_player;
+    msg->eq = id_team;
+    msg->len = 0;
+    msg->data = malloc(256*sizeof(char));
+    return msg;
+}
+
+void clearMessage(Message *msg){
+    msg->len = 0;
+}
+void freeMessage(Message* msg){
+    free(msg->data);
+    free(msg);
 }

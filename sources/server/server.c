@@ -10,7 +10,7 @@
 #include "data_structures.h"
 
 #define TIMEOUT 1000
-#define CLIENT_TIMEOUT 10
+#define CLIENT_TIMEOUT 10000
 
 int main(int argc, char** argv) {
     pthread_t games_supervisor;
@@ -21,7 +21,7 @@ int main(int argc, char** argv) {
         exit(EXIT_FAILURE);
     }
 
-    int flags = set_non_blocking(tcp_socket);
+   int flags = set_non_blocking(tcp_socket);
 
     if(flags < 0) {
         perror("Setting non-blocking failed");
@@ -83,6 +83,7 @@ int main(int argc, char** argv) {
                 if(!(pfd->revents & POLLIN)) continue;
     
                 if(pfd->fd == tcp_socket) {
+                    
                     int client_tcp_socket = accept(tcp_socket, (struct sockaddr *)&client_tcp, &client_tcp_len);
                     if (client_tcp_socket == -1) {
                         perror("Error accepting TCP connection");
@@ -113,20 +114,21 @@ int main(int argc, char** argv) {
                         }
                     }
 
-                    CReq join_rq = {0};
-                    if(recv_client_request(client_tcp_socket, &join_rq, sizeof(join_rq.req.join))) {
+                    CReq tcp_rq = {0};
+                    if(recv_client_request(client_tcp_socket, &tcp_rq)) {
                         perror("Erreur recv join request");
                         close(client_tcp_socket);
                         continue;
                     }
+                    
 
-                    debug("Join request received");
-                    debug_creq(&join_rq);
-                    uint16_t codereq = get_codereq(join_rq.req.join.header);
+                    debug("TCP request received");
+                    debug_creq(&tcp_rq);
+                    uint16_t codereq = get_codereq(tcp_rq.req.join.header);
 
                     if(codereq == CREQ_MODE4 || codereq == CREQ_TEAMS) {
                         SReq start_rq = {0};
-                        if(create_regestartionrq(&server_games, &start_rq, &join_rq.req.join)) {
+                        if(create_regestartionrq(&server_games, &start_rq, &tcp_rq.req.join)) {
                             perror("Mode inconnue");
                             continue;
                         }
@@ -149,9 +151,13 @@ int main(int argc, char** argv) {
                     } else if(codereq == CCONF_MODE4 || codereq == CCONF_TEAMS) {
                         debug("Le client a confirmé qu'il veut rejoindre la partie");
                         set_player_status(&server_games, client_infos->game_udp_port, client_infos->client_id, READY);
-                        client_infos->status = READY;
-                    } else {
+                    } else if(codereq == CALL_CHAT || codereq == CCOP_CHAT){
+                        //send_server_request(client_tcp_socket, &tcp_rq);
+                        log_info("REQUEST TCHAT REÇUE");
+                        log_info("Message = %s", tcp_rq.req.tchat.data);
                         // TODO le tchat sinon c'est une erreur refuser le client
+                    }
+                    else{
                     }
                 }
             }
