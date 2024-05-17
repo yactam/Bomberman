@@ -79,18 +79,26 @@ int subscribe_multicast(uint16_t port_multicast, char* adr_multicast) {
 }
 
 UDP_Infos *init_udp_connection(uint16_t port_udp) {
-    struct sockaddr_in6 serv_addr = {0};
-    int sockfd = connect_client(NULL, port_udp, SOCK_DGRAM, &serv_addr);
+    int sockfd;
 
-    if (sockfd < 0) {
+    if ((sockfd = socket(AF_INET6, SOCK_DGRAM, 0)) < 0) {
         perror("Erreur while creating UDP socket");
         return NULL;
     }
 
-    if(set_reuseaddr(sockfd)) {
-        close(sockfd);
-        exit(EXIT_FAILURE);
-    }
+    struct sockaddr_in6 serv_addr;
+    memset(&serv_addr, 0, sizeof(serv_addr));
+    serv_addr.sin6_family = AF_INET6;
+    serv_addr.sin6_port = htons(port_udp);
+    serv_addr.sin6_addr = in6addr_any;
+    serv_addr.sin6_scope_id = 0;
+
+    int ok = 1;
+	if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &ok, sizeof(ok)) < 0) {
+		perror("echec de SO_REUSEADDR");
+		close(sockfd);
+		return NULL;
+	}
 
     if (bind(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
         perror("Erreur while binding socket with the server adresse");
