@@ -79,19 +79,13 @@ int subscribe_multicast(uint16_t port_multicast, char* adr_multicast) {
 }
 
 UDP_Infos *init_udp_connection(uint16_t port_udp) {
-    int sockfd = socket(AF_INET6, SOCK_DGRAM, 0);
+    struct sockaddr_in6 serv_addr = {0};
+    int sockfd = connect_client(NULL, port_udp, SOCK_DGRAM, &serv_addr);
 
     if (sockfd < 0) {
         perror("Erreur while creating UDP socket");
         return NULL;
     }
-
-    struct sockaddr_in6 serv_addr;
-    memset(&serv_addr, 0, sizeof(serv_addr));
-    serv_addr.sin6_family = AF_INET6;
-    serv_addr.sin6_port = htons(port_udp);
-    serv_addr.sin6_addr = in6addr_any;
-    serv_addr.sin6_scope_id = 0;
 
     if(set_reuseaddr(sockfd)) {
         close(sockfd);
