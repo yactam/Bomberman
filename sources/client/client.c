@@ -165,8 +165,9 @@ int main(int argc, char** argv) {
                             draw_tchat(*tchat);
                         }
                         break;
-                    case KEY_ENTER:
-                        create_chatrq(&client_req, id_player, id_team,tchat,CALL_CHAT);
+                    case '*':
+                        log_error("TCHAT REQUEST FROM CLIENT AFTER TYPING *");
+                        create_chatrq(&client_req, id_player, id_team, tchat, CALL_CHAT);
                         clearMessage(tchat);
                         break;
                     default:
@@ -181,13 +182,16 @@ int main(int argc, char** argv) {
                 }
                 num = (num + 1) % (1 << CNUM_LEN);
 
-                debug_creq(&client_req);
-                if(client_req.type == CALL_CHAT||client_req.type == CCOP_CHAT){
-                    sendMessage(&client_req,tcp_socket);
+                if(client_req.type != 0) {
+                    debug_creq(&client_req);
+                    if(client_req.type == CALL_CHAT || client_req.type == CCOP_CHAT) {
+                        debug("Envoyer une requete TCHAT");
+                        send_client_request(tcp_socket, &client_req);
+                    } else {
+                        send_datagram(sock_udp, server_addr, &client_req);
+                    }
                 }
-                else{
-                     send_datagram(sock_udp, server_addr, &client_req);
-                }
+                
             }
         }
         

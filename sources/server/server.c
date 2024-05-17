@@ -10,7 +10,7 @@
 #include "data_structures.h"
 
 #define TIMEOUT 1000
-#define CLIENT_TIMEOUT 10
+#define CLIENT_TIMEOUT 10000
 
 int main(int argc, char** argv) {
     pthread_t games_supervisor;
@@ -21,13 +21,13 @@ int main(int argc, char** argv) {
         exit(EXIT_FAILURE);
     }
 
-   // int flags = set_non_blocking(tcp_socket);
+   int flags = set_non_blocking(tcp_socket);
 
-    // if(flags < 0) {
-    //     perror("Setting non-blocking failed");
-    //     close(tcp_socket);
-    //     exit(EXIT_FAILURE);
-    // }
+    if(flags < 0) {
+        perror("Setting non-blocking failed");
+        close(tcp_socket);
+        exit(EXIT_FAILURE);
+    }
 
     if (pthread_create(&games_supervisor, NULL, games_supervisor_handler, (void*)&server_games) != 0) {
         perror("Erreur lors de la création du thread de gestion du démarrage des parties");
@@ -150,8 +150,10 @@ int main(int argc, char** argv) {
                     } else if(codereq == CCONF_MODE4 || codereq == CCONF_TEAMS) {
                         debug("Le client a confirmé qu'il veut rejoindre la partie");
                         set_player_status(&server_games, client_infos->game_udp_port, client_infos->client_id, READY);
-                    } else if(codereq ==CALL_CHAT||codereq == CCOP_CHAT){
-                        send_server_tchat(client_tcp_socket,&tcp_rq);
+                    } else if(codereq == CALL_CHAT || codereq == CCOP_CHAT){
+                        //send_server_request(client_tcp_socket, &tcp_rq);
+                        log_info("REQUEST TCHAT REÇUE");
+                        log_info("Message = %s", tcp_rq.req.tchat.data);
                         // TODO le tchat sinon c'est une erreur refuser le client
                     }
                     else{

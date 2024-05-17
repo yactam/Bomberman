@@ -109,6 +109,8 @@ Creq_Tchat ntoh_tchat(Buf_t *buf_rq){
     copyfrombuf(buf_rq, &start, sizeof(header), &header);
     copyfrombuf(buf_rq, &start, sizeof(tchat.len), &tchat.len);
     copyfrombuf(buf_rq, &start, tchat.len, tchat.data);
+
+    tchat.header = ntohs(header);
     
     return tchat;
 }
@@ -138,7 +140,9 @@ Buf_t* recv_tcp(int sockfd, size_t sto_recv, Buf_t *req_buf){
 
 uint8_t recv_client_request(int sockfd, CReq *client_rq) {
     Buf_t req_buf;
-    if(recv_tcp(sockfd, sizeof(Header_t), &req_buf)==NULL) return 1;
+
+    if(recv_tcp(sockfd, sizeof(Header_t), &req_buf) == NULL)
+        return 1;
 
     Header_t header;
     size_t start = 0;
@@ -149,17 +153,19 @@ uint8_t recv_client_request(int sockfd, CReq *client_rq) {
 
     if(client_rq->type == CREQ_MODE4 || client_rq->type == CREQ_TEAMS || client_rq->type == CCONF_MODE4 || client_rq->type == CCONF_TEAMS) {
         client_rq->req.join = ntoh_integrationrq(&req_buf);
-    } else if(client_rq->type == CALL_CHAT||CCOP_CHAT){
+    } else if(client_rq->type == CALL_CHAT || client_rq->type == CCOP_CHAT){
         Buf_t tchat_buf;
+        size_t tchat_start = 0;
         u_int8_t len;
-        recv_tcp(sockfd,sizeof(u_int8_t),&tchat_buf);
-        appendbuf(&req_buf,&tchat_buf,sizeof(tchat_buf));
-        copyfrombuf(&req_buf,&start,sizeof(u_int8_t),&len);
-        recv_tcp(sockfd,len,&tchat_buf);
-        appendbuf(&req_buf,&tchat_buf,len);
+
+        recv_tcp(sockfd, sizeof(uint8_t), &tchat_buf);
+        appendbuf(&req_buf, tchat_buf.content, sizeof(uint8_t));
+        copyfrombuf(&tchat_buf, &tchat_start, sizeof(uint8_t), &len);
+
+        recv_tcp(sockfd, len, &tchat_buf);
+        appendbuf(&req_buf, &tchat_buf.content, len);
+
         client_rq->req.tchat = ntoh_tchat(&req_buf);
-        //client_rq -> req.tchat.data = buf;
-        log_info("message reçu: %s", client_rq->req.tchat.data);
     }
     else {
         // TODO : continuer l'implementation avec toutes les requetes possibles 

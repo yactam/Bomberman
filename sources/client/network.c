@@ -34,6 +34,7 @@ Buf_t hton_tchat(Creq_Tchat *tchat_rq){
     appendbuf(&buf, &header, sizeof(header));
     appendbuf(&buf,&tchat_rq->len,sizeof(tchat_rq->len));
     appendbuf(&buf,tchat_rq->data,tchat_rq->len);
+    
     return buf;
 }
 
