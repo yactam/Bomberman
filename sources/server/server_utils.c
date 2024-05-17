@@ -90,14 +90,7 @@ void* launch_game(void* args) {
         perror("Erreur lors de l'initialisation de la connexion udp dans le serveur");
         return NULL;
     }
-    void initMessage(Message* msg, u_int8_t id_player, u_int8_t id_team){
-        msg = malloc(sizeof(Message));
-        msg-> codereq =CODEREQ_ALL_PLAYERS ;
-        msg->id = id_player;
-        msg->eq = id_team;
-        msg->len = 0;
-        msg->data = malloc(256);
-    }
+    
     int sock_udp = udp_infos->sock_udp;
     struct sockaddr_in6 serv_addr = udp_infos->server_addr;
     free(udp_infos); 

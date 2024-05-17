@@ -53,6 +53,14 @@ typedef enum{
 	UNDO=5
 } action_t;
 
+typedef enum {
+    DISCONNECTED = 0,
+    CONNECTING,
+    READY,
+    PLAYING,
+    DEAD
+} player_status_t;
+
 typedef enum{
 	EMPTY=0,
 	IWALL=1,
