@@ -10,6 +10,7 @@
 #include "socket_utils.h"
 #include "game.h"
 #include "debug.h"
+#include "data_structures.h"
 
 #define FREQ 10
 
@@ -160,13 +161,12 @@ void* launch_game(void* args) {
             pthread_mutex_lock(&game.game_mtx);
             clear_bombs_explosions(&game.game_board);
             pthread_mutex_unlock(&game.game_mtx);
-            pthread_mutex_lock(&game.game_mtx);
-            //int winner = check_game_over(&game);
-            pthread_mutex_unlock(&game.game_mtx);
             if(winner != -1) {
                 debug("CHECK GAME OVER THERE IS A WINNER %d", winner);
                 game.game_status == GAME_OVER;
-                // TODO informer les joueurs du gagnant
+                SReq end_rq = {0};
+                create_endrq(&end_rq, winner, game.game_mode);
+                send_server_request(game.clients_tcp_sockets, game.nb_players, &end_rq);
             }
 
             // multicaster toute la grille si nécessaire
@@ -203,6 +203,22 @@ void* launch_game(void* args) {
     }
 
     return NULL;
+}
+
+int get_tcp_sockets(Array *clients_infos, uint16_t game_udp_port, int *res, uint16_t codereq, uint8_t id_team) {
+    size_t next_index = 0;
+
+    for(size_t i = 0; i < clients_infos->size; ++i) {
+        Client_Infos *ci = get_from_array(clients_infos, i);
+        if(ci->game_udp_port == game_udp_port) {
+            if(codereq == CALL_CHAT)
+                res[next_index++] = ci->client_tcp_sock;
+            else if(ci->client_id % 2 == id_team)
+                res[next_index++] = ci->client_tcp_sock;
+        }
+    }
+
+    return next_index;
 }
 
 int close_server(int sockfd, ServerGames **server_games) {

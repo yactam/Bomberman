@@ -91,11 +91,11 @@ void debug_congamerq(CReq_Play *ongame_rq) {
     debug_message(ongame_rq->message);
 }
 
-void debug_cchatrq(Creq_Tchat *chat_rq) {
+void debug_cchatrq(Creq_Tchat *tchat_rq) {
     debug("**** CLIENT TCHAT REQUEST ****");
-    debug_header(chat_rq->header);
-    debug("LEN  : %d", chat_rq->len);
-    debug("DATA : %s", chat_rq->data);
+    debug_header(tchat_rq->header);
+    debug("LEN  : %d", tchat_rq->len);
+    debug("DATA : %s", tchat_rq->data);
 }
 
 void debug_sstartrq(SReq_Start *start_rq) {
@@ -137,6 +137,13 @@ void debug_scasesrq(SReq_Cell *cell_rq) {
     }
 }
 
+void debug_stchatrq(SReq_Tchat *tchat_rq) {
+    debug("**** SERVER TCHAT REQUEST ****");
+    debug_header(tchat_rq->header);
+    debug("LEN  : %d", tchat_rq->len);
+    debug("DATA : %s", tchat_rq->data);
+}
+
 void debug_creq(CReq *client_rq) {
     debug("CReq type is %d", client_rq->type);
     if(client_rq->type == CREQ_MODE4 || client_rq->type == CREQ_TEAMS || client_rq->type == CCONF_MODE4 || client_rq->type == CCONF_TEAMS) {
@@ -156,6 +163,8 @@ void debug_sreq(SReq *server_rq) {
         debug_sgridrq(&server_rq->req.grid);
     } else if(server_rq->type == SDIFF_CASES) {
         debug_scasesrq(&server_rq->req.cell);
+    } else if(server_rq->type == SALL_CHAT || server_rq->type == SCOP_CHAT) {
+        debug_stchatrq(&server_rq->req.tchat);
     } else {
         log_error("NOT YET %d", server_rq->type);
     }

@@ -39,6 +39,7 @@ typedef struct {
     GameBoard game_board;
     int multicast_sock;
     struct sockaddr_in6 gradr;
+    int clients_tcp_sockets[NB_PLAYERS];
 } Game;
 
 typedef struct {
@@ -55,7 +56,7 @@ static uint16_t PORTMULTICAST = 54321;
 
 void init_serverGames(ServerGames**);
 void free_serverGames(ServerGames**);
-int add_client(ServerGames**, game_mode_t, uint16_t*, uint16_t*, char*);
+int add_client(ServerGames**, game_mode_t, uint16_t*, uint16_t*, char*, int);
 int remove_client(ServerGames**, uint16_t portudp, uint8_t id_player);
 char *generate_multicast_addr();
 uint16_t generate_udpPort();

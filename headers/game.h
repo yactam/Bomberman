@@ -10,8 +10,6 @@
 #define EXPLOSION_DELAY 3
 #define NB_LINES_CHAT 5
 #define MAX_MESS_LENGTH 255
-#define CODEREQ_ALL_PLAYERS 7
-#define CODEREQ_TEAMMATE 8
 
 typedef enum {
     MODE4,
@@ -43,11 +41,9 @@ typedef struct {
 } PlayerAction;
 
 typedef struct {
-   uint16_t codereq;
-    uint8_t id;
-    uint8_t eq;
-    uint8_t len;
-    char *data;
+    char data[MAX_MESS_LENGTH + 5];
+    size_t length;
+    bool is_sent;
 } Message;
 
 int init_board(char *filename, GameBoard *board);

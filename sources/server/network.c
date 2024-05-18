@@ -65,6 +65,31 @@ Buf_t hton_cellsrq(SReq_Cell *cell_rq) {
 
 }
 
+Buf_t hton_chatrq(SReq_Tchat *tchat_rq) {
+    Buf_t bytes_rq;
+    initbuf(&bytes_rq);
+
+    Header_t header = htons(tchat_rq->header);
+    uint8_t len = tchat_rq->len;
+
+    appendbuf(&bytes_rq, &header, sizeof(header));
+    appendbuf(&bytes_rq, &len, sizeof(len));
+    appendbuf(&bytes_rq, tchat_rq->data, len * sizeof(char));
+
+    return bytes_rq;
+}
+
+Buf_t hton_endrq(SReq_End *end_rq) {
+    Buf_t bytes_rq;
+    initbuf(&bytes_rq);
+
+    Header_t header = htons(end_rq->header);
+
+    appendbuf(&bytes_rq, &header, sizeof(header));
+
+    return bytes_rq;
+}
+
 CReq_Join ntoh_integrationrq(Buf_t *buf_rq) {
     CReq_Join join = {0};
     Header_t header;
@@ -175,32 +200,30 @@ uint8_t recv_client_request(int sockfd, CReq *client_rq) {
     return 0;
 }
 
-uint8_t send_server_request(int sockfd, SReq *server_rq) {
+uint8_t send_server_request(int *sockfds, size_t nb_socks, SReq *server_rq) {
     Buf_t bytes_rq;
     uint16_t type = server_rq->type;
 
-    debug("Send server request of type %d", type);
-
     if(type == SREQ_MODE4 || type == SREQ_TEAMS) {
         bytes_rq = hton_startrq(&server_rq->req.start);
-
-        if(send(sockfd, bytes_rq.content, bytes_rq.size, 0) < 0) {
-            perror("Erreur send server request start");
-            return 1;
-        }
-    }else if(type == CALL_CHAT){
-
-    } 
-    
-    else {
-        // TODO : À implementer avec toutes les autres requêtes
-        log_info("Not yet %d\n", type);
+    } else if(type == SALL_CHAT || type == SCOP_CHAT) {
+        bytes_rq = hton_chatrq(&server_rq->req.tchat);
+    } else if(type == SGAMEOVER_MODE4 || type == SGAMEOVER_TEAMS) {
+        bytes_rq = hton_endrq(&server_rq->req.end);
     }
+
+    for(size_t i = 0; i < nb_socks; ++i) {
+        int sfd = sockfds[i];
+        if(sfd != 0) {
+            debug("Send server request of type %d to %d", type, sfd);
+            if(send(sfd, bytes_rq.content, bytes_rq.size, 0) < 0) {
+                perror("Erreur send server request start");
+                return 1;
+            }
+        }
+    }
+
     return 0;
-}
-
-u_int8_t send_server_tchat(int socket, SReq *msg){
-
 }
 
 uint8_t send_datagram(int sfd, struct sockaddr_in6 gradr, SReq *server_rq) {

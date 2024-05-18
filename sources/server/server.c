@@ -56,7 +56,6 @@ int main(int argc, char** argv) {
             perror("Error in poll");
             break;
         } else if(ret == 0) {
-            debug("Il n'y a pas eu d'action depuis une seconde");
 
             time_t current_time = time(NULL);
             for (size_t i = 0; i < clients_infos->size; ++i) {
@@ -124,18 +123,18 @@ int main(int argc, char** argv) {
 
                     debug("TCP request received");
                     debug_creq(&tcp_rq);
-                    uint16_t codereq = get_codereq(tcp_rq.req.join.header);
+                    uint16_t codereq = tcp_rq.type;
 
                     if(codereq == CREQ_MODE4 || codereq == CREQ_TEAMS) {
                         SReq start_rq = {0};
-                        if(create_regestartionrq(&server_games, &start_rq, &tcp_rq.req.join)) {
+                        if(create_regestartionrq(&server_games, &start_rq, &tcp_rq.req.join, client_tcp_socket)) {
                             perror("Mode inconnue");
                             continue;
                         }
 
                         debug_sreq(&start_rq);
 
-                        if(send_server_request(client_tcp_socket, &start_rq)) {
+                        if(send_server_request(&client_tcp_socket, 1, &start_rq)) {
                             perror("Erreur send request");
                             close(client_tcp_socket);
                             remove_client(&server_games, start_rq.req.start.portudp, get_id(start_rq.req.start.header));
@@ -152,10 +151,22 @@ int main(int argc, char** argv) {
                         debug("Le client a confirmé qu'il veut rejoindre la partie");
                         set_player_status(&server_games, client_infos->game_udp_port, client_infos->client_id, READY);
                     } else if(codereq == CALL_CHAT || codereq == CCOP_CHAT){
-                        //send_server_request(client_tcp_socket, &tcp_rq);
-                        log_info("REQUEST TCHAT REÇUE");
-                        log_info("Message = %s", tcp_rq.req.tchat.data);
-                        // TODO le tchat sinon c'est une erreur refuser le client
+                        SReq tchat_rq = {0};
+                        create_tchatrq(&tchat_rq, &tcp_rq.req.tchat);
+                        debug_sreq(&tchat_rq);
+
+                        int sock_fds[NB_PLAYERS] = {0};
+                        int id_team = get_eq(tchat_rq.req.tchat.header);
+                        int nb_socks = get_tcp_sockets(clients_infos, client_infos->game_udp_port, sock_fds, codereq, id_team);
+                        if(nb_socks < 0) {
+                            perror("Erreur get tcp sockets");
+                            continue;
+                        }
+
+                        if(send_server_request(sock_fds, nb_socks, &tchat_rq)) {
+                            perror("Erreur send tchat request");
+                            continue;
+                        }
                     }
                     else{
                     }

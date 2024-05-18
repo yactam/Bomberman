@@ -8,11 +8,11 @@
 #include "server/games_handler.h"
 #include "game.h"
 
-int create_regestartionrq(ServerGames **server_games, SReq *serverrq, CReq_Join *clientrq) {
+int create_regestartionrq(ServerGames **server_games, SReq *serverrq, CReq_Join *clientrq, int tcp_sock) {
     game_mode_t mode = (get_codereq(clientrq->header) == CREQ_MODE4) ? MODE4 : TEAMS;
     uint16_t portudp, portmulticast;
     char multicast_addr[16] = {0};
-    int player_id = add_client(server_games, mode, &portudp, &portmulticast, multicast_addr);
+    int player_id = add_client(server_games, mode, &portudp, &portmulticast, multicast_addr, tcp_sock);
     if(player_id < 0) {
         // TODO : Si on aura le temps on va implémenter des tableaux dynamiques
         log_error("Server is busy :\\ please try later.");
@@ -63,6 +63,32 @@ int create_cellrq(SReq *serverrq, GameBoard prev_board, GameBoard board, uint16_
             }
         }
     }
+
+    return 0;
+}
+
+int create_tchatrq(SReq *serverrq, Creq_Tchat *clientrq) {
+    uint16_t codereq = get_codereq(clientrq->header) == CALL_CHAT ? SALL_CHAT : SCOP_CHAT;
+    uint8_t id_player = get_id(clientrq->header);
+    uint8_t id_team = get_eq(clientrq->header);
+
+    serverrq->type = codereq;
+    serverrq->req.tchat.header = (codereq << (EQ_LEN + ID_LEN) | (id_player << EQ_LEN) | (id_team));
+    serverrq->req.tchat.len = clientrq->len;
+    memcpy(serverrq->req.tchat.data, clientrq->data, clientrq->len * sizeof(char));
+
+    return 0;
+}
+
+int create_endrq(SReq *serverrq, uint8_t winner, game_mode_t mode) {
+    uint16_t codereq = (mode == MODE4) ? SGAMEOVER_MODE4 : SGAMEOVER_TEAMS;
+    uint8_t id_player = mode == MODE4 ? winner : 0;
+    uint8_t id_team = mode == MODE4 ? 0 : winner;
+
+    Header_t header = (codereq << (EQ_LEN + ID_LEN) | (id_player << EQ_LEN) | (id_team));
+
+    serverrq->type = codereq;
+    serverrq->req.end.header = header;
 
     return 0;
 }

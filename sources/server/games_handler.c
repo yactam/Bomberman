@@ -31,7 +31,7 @@ void free_serverGames(ServerGames **server_games) {
     free(sg);
 }
 
-int add_client(ServerGames **sg, game_mode_t mode, uint16_t* port_udp, uint16_t* port_multicast, char* addr_mdiff) {
+int add_client(ServerGames **sg, game_mode_t mode, uint16_t* port_udp, uint16_t* port_multicast, char* addr_mdiff, int tcp_sock) {
     ServerGames *server_games = *sg;
     if (server_games == NULL) {
         log_error("server_games est NULL");
@@ -58,6 +58,7 @@ int add_client(ServerGames **sg, game_mode_t mode, uint16_t* port_udp, uint16_t*
             server_games->games[i].players[player_id].player_id = player_id;
             server_games->games[i].players[player_id].game_id = i;
             server_games->games[i].nb_players++;
+            server_games->games[i].clients_tcp_sockets[server_games->games[i].nb_players] = tcp_sock;
             *port_udp = server_games->games[i].port_udp;
             *port_multicast = server_games->games[i].port_multicast;
             strcpy(addr_mdiff, server_games->games[i].addr_mdiff);
@@ -83,7 +84,7 @@ int add_client(ServerGames **sg, game_mode_t mode, uint16_t* port_udp, uint16_t*
         server_games->games[game_index].port_udp = *port_udp;
         server_games->games[game_index].port_multicast = *port_multicast;
         strcpy(server_games->games[game_index].addr_mdiff, addr_mdiff);
-         server_games->nb_games++;
+        server_games->nb_games++;
         pthread_mutex_unlock(&server_games->sgames_mtx);
         debug("Unlocked server_games mutex");
 
@@ -106,6 +107,7 @@ int add_client(ServerGames **sg, game_mode_t mode, uint16_t* port_udp, uint16_t*
         server_games->games[game_index].players[player_index].player_id = player_index;
         server_games->games[game_index].players[player_index].player_status = CONNECTING;
         server_games->games[game_index].players[player_index].game_id = game_index;
+        server_games->games[game_index].clients_tcp_sockets[0] = tcp_sock;
         server_games->games[game_index].nb_players++;
         pthread_mutex_unlock(&server_games->games[game_index].game_mtx);
         debug("Unlocked server_games->games[%d] mutex", game_index);
@@ -389,7 +391,7 @@ int process_players_actions(PlayerAction *actions, size_t nb_actions, player_pos
             if(ret!=-1) break;
         }
     }
-    debug_board(*board);
+    //debug_board(*board);
     pthread_mutex_unlock(&game->game_mtx);
     return ret;
 }
