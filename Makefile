@@ -1,41 +1,66 @@
-CC := gcc
-CFLAGS := -Iheaders -lncurses
-SRC := sources
-CLIENT_SRCDIR := sources/client
-SERVER_SRCDIR := sources/server
-CLIENT_OBJDIR := obj/client
-SERVER_OBJDIR := obj/server
-CLIENT_EXECUTABLE := client
-SERVER_EXECUTABLE := server
+CC            := gcc
+LDLIBS        := -pthread -lncurses
+CFLAGS        := -Iheaders -DNDEBUG
 
-CLIENT_SOURCES := $(wildcard $(CLIENT_SRCDIR)/*.c $(SRC)/*.c)
-SERVER_SOURCES := $(wildcard $(SERVER_SRCDIR)/*.c $(SRC)/*.c)
-CLIENT_OBJECTS := $(patsubst $(CLIENT_SRCDIR)/%.c,$(CLIENT_OBJDIR)/%.o,$(CLIENT_SOURCES))
-SERVER_OBJECTS := $(patsubst $(SERVER_SRCDIR)/%.c,$(SERVER_OBJDIR)/%.o,$(SERVER_SOURCES))
+BIN           := bin
+OBJ           := obj
+SRC           := sources
 
-.PHONY: all clean client server
+CLIENT        := client
+SERVER        := server
 
-all: client server
+TARGET_CLIENT := $(BIN)/$(CLIENT)
+TARGET_SERVER := $(BIN)/$(SERVER)
 
-client: $(CLIENT_EXECUTABLE)
+SRCS_CLIENT   := $(shell find $(SRC)/client -name '*.c') $(shell find $(SRC) -maxdepth 1 -name '*.c')
+SRCS_SERVER   := $(shell find $(SRC)/server -name '*.c') $(shell find $(SRC) -maxdepth 1 -name '*.c')
 
-server: $(SERVER_EXECUTABLE)
+OBJS_CLIENT   := $(patsubst $(SRC)/%, $(OBJ)/%, $(SRCS_CLIENT:.c=.o))
+OBJS_SERVER   := $(patsubst $(SRC)/%, $(OBJ)/%, $(SRCS_SERVER:.c=.o))
 
-$(CLIENT_EXECUTABLE): $(CLIENT_OBJECTS)
-	$(CC) -o $@ $^ $(CFLAGS)
+RESSOURCES    := res
 
-$(SERVER_EXECUTABLE): $(SERVER_OBJECTS)
-	$(CC) -o $@ $^ $(CFLAGS)
+.PHONY: all clean client server debug client_memory server_memory help
 
-$(CLIENT_OBJDIR)/%.o: $(CLIENT_SRCDIR)/%.c
-	@mkdir -p $(CLIENT_OBJDIR)
-	$(CC) -c -o $@ $< $(CFLAGS)
+all: $(TARGET_SERVER) $(TARGET_CLIENT)
 
-$(SERVER_OBJDIR)/%.o: $(SERVER_SRCDIR)/%.c
-	@mkdir -p $(SERVER_OBJDIR)
-	$(CC) -c -o $@ $< $(CFLAGS)
+client: $(TARGET_CLIENT)
+
+server: $(TARGET_SERVER)
+
+debug: CFLAGS = -Iheaders
+debug: all
+
+client_memory: $(TARGET_CLIENT) $(OBJS_CLIENT)
+	valgrind ./$(TARGET_CLIENT)
+
+server_memory: $(TARGET_SERVER) $(OBJS_SERVER)
+	valgrind ./$(TARGET_SERVER)
+
+$(TARGET_CLIENT): $(OBJS_CLIENT)
+	@mkdir -p $(RESSOURCES)/$(CLIENT)
+	@mkdir -p $(dir $@)
+	$(CC) -o $@ $^ $(LDLIBS)
+
+$(TARGET_SERVER): $(OBJS_SERVER)
+	@mkdir -p $(RESSOURCES)/$(SERVER)
+	@mkdir -p $(dir $@)
+	$(CC) -o $@ $^ $(LDLIBS)
+
+# Generic rule to compile object files
+$(OBJ)/%.o: $(SRC)/%.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 clean:
-	rm -rf $(CLIENT_OBJDIR)/*.o $(SERVER_OBJDIR)/*.o $(CLIENT_EXECUTABLE) $(SERVER_EXECUTABLE)
+	$(RM) -r $(BIN) $(OBJ) $(RESSOURCES)
 
-
+help:
+	@echo "Usage:"
+	@echo "    make [all]          Compilation du client et du serveur"
+	@echo "    make client         Compilation du client"
+	@echo "    make server         Compilation du serveur"
+	@echo "    make clean          Supprime les .o et les executable"
+	@echo "    make client_memory  Lance valgrind sur le client"
+	@echo "    make server_memory  Lance valgrind sur le serveur"
+	@echo "    make help           Affichage d'aide"
