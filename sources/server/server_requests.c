@@ -14,7 +14,6 @@ int create_regestartionrq(ServerGames **server_games, SReq *serverrq, CReq_Join 
     char multicast_addr[16] = {0};
     int player_id = add_client(server_games, mode, &portudp, &portmulticast, multicast_addr, tcp_sock);
     if(player_id < 0) {
-        // TODO : Si on aura le temps on va implémenter des tableaux dynamiques
         log_error("Server is busy :\\ please try later.");
         return 1;
     } else {

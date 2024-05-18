@@ -31,6 +31,50 @@ void free_serverGames(ServerGames **server_games) {
     free(sg);
 }
 
+int add_player_to_game(Game *game, int tcp_sock) {
+    int player_id = -1;
+    for (size_t j = 0; j < NB_PLAYERS; ++j) {
+        if (game->players[j].player_status == DISCONNECTED) {
+            player_id = j;
+            game->players[j].player_status = CONNECTING;
+            game->players[j].player_id = player_id;
+            game->players[j].game_id = game->game_id;
+            game->clients_tcp_sockets[game->nb_players] = tcp_sock;
+            game->nb_players++;
+            break;
+        }
+    }
+    return player_id;
+}
+
+void initialize_new_game(Game *game, game_mode_t mode, uint16_t *port_udp, uint16_t *port_multicast, char *addr_mdiff, int tcp_sock) {
+    game->game_mode = mode;
+    game->nb_players = 0;
+    pthread_mutex_init(&game->game_mtx, NULL);
+    *port_udp = generate_udpPort();
+    *port_multicast = generate_multicastPort();
+    generate_multicast_addr(addr_mdiff);
+    game->port_udp = *port_udp;
+    game->port_multicast = *port_multicast;
+    strcpy(game->addr_mdiff, addr_mdiff);
+
+    int sock = socket(PF_INET6, SOCK_DGRAM, 0);
+    if (sock < 0) {
+        perror("Erreur lors de la création de la socket de multidiffusion du serveur");
+        pthread_exit(NULL);
+    }
+    struct sockaddr_in6 gradr = {0};
+    gradr.sin6_family = AF_INET6;
+    gradr.sin6_port = htons(*port_multicast);
+    inet_pton(AF_INET6, multicast_addr, &gradr.sin6_addr);
+    gradr.sin6_scope_id = 0;
+
+    game->multicast_sock = sock;
+    game->gradr = gradr;
+
+    add_player_to_game(game, tcp_sock);
+}
+
 int add_client(ServerGames **sg, game_mode_t mode, uint16_t* port_udp, uint16_t* port_multicast, char* addr_mdiff, int tcp_sock) {
     ServerGames *server_games = *sg;
     if (server_games == NULL) {
@@ -41,78 +85,37 @@ int add_client(ServerGames **sg, game_mode_t mode, uint16_t* port_udp, uint16_t*
     debug("Lock server_games mutex");
     pthread_mutex_lock(&(server_games->sgames_mtx));
 
-    for(size_t i = 0; i < server_games->nb_games; ++i) {
-        if(server_games->games[i].game_mode == mode && server_games->games[i].nb_players < NB_PLAYERS) {
+    for (size_t i = 0; i < server_games->nb_games; ++i) {
+        if (server_games->games[i].game_mode == mode && server_games->games[i].nb_players < NB_PLAYERS) {
             debug("Lock server_games->games[%d] mutex", i);
             pthread_mutex_lock(&server_games->games[i].game_mtx);
             pthread_mutex_unlock(&server_games->sgames_mtx);
             debug("Unlocked server_games mutex");
-            int player_id;
-            for(size_t j = 0; j < NB_PLAYERS; ++j) {
-                if(server_games->games[i].players[j].player_status == DISCONNECTED) {
-                    player_id = j;
-                    server_games->games[i].players[j].player_status = CONNECTING;
-                    break;
-                }
+
+            int player_id = add_player_to_game(&server_games->games[i], tcp_sock);
+            if (player_id != -1) {
+                *port_udp = server_games->games[i].port_udp;
+                *port_multicast = server_games->games[i].port_multicast;
+                strcpy(addr_mdiff, server_games->games[i].addr_mdiff);
+                pthread_mutex_unlock(&server_games->games[i].game_mtx);
+                debug("Unlocked server_games->games[%d] mutex", i);
+                debug("Add player to game %d with player_id %d", server_games->games[i].game_id, player_id);
+                debug("The number of players in the game %d is %d", i, server_games->games[i].nb_players);
+                return player_id;
             }
-            server_games->games[i].players[player_id].player_id = player_id;
-            server_games->games[i].players[player_id].game_id = i;
-            server_games->games[i].nb_players++;
-            server_games->games[i].clients_tcp_sockets[server_games->games[i].nb_players] = tcp_sock;
-            *port_udp = server_games->games[i].port_udp;
-            *port_multicast = server_games->games[i].port_multicast;
-            strcpy(addr_mdiff, server_games->games[i].addr_mdiff);
-            pthread_mutex_unlock(&server_games->games[i].game_mtx);
-            debug("Unlocked server_games->games[%d] mutex", i);
-            debug("Add player to game %d with player_id %d", server_games->games[i].game_id, player_id);
-            debug("The number of players in the game %d is %d", i, server_games->games[i].nb_players);
-            return player_id;
         }
     }
 
-    if(server_games->nb_games < MAX_GAMES) {
+    if (server_games->nb_games < MAX_GAMES) {
         int game_index = server_games->nb_games;
         server_games->games[game_index].game_id = game_index;
-        server_games->games[game_index].game_mode = mode;
-        server_games->games[game_index].nb_players = 0;
-        pthread_mutex_init(&server_games->games[game_index].game_mtx, NULL);
-        debug("Lock server_games->games[%d] mutex", game_index);
-        pthread_mutex_lock(&server_games->games[game_index].game_mtx);
-        *port_udp = generate_udpPort();
-        *port_multicast = generate_multicastPort();
-        generate_multicast_addr(addr_mdiff);
-        server_games->games[game_index].port_udp = *port_udp;
-        server_games->games[game_index].port_multicast = *port_multicast;
-        strcpy(server_games->games[game_index].addr_mdiff, addr_mdiff);
+        initialize_new_game(&server_games->games[game_index], mode, port_udp, port_multicast, addr_mdiff, tcp_sock);
         server_games->nb_games++;
         pthread_mutex_unlock(&server_games->sgames_mtx);
         debug("Unlocked server_games mutex");
 
-        int sock = socket(PF_INET6, SOCK_DGRAM, 0);
-        if(sock < 0) {
-            perror("Erreur lors de la création de la socket de multidiffusion du serveur");
-            pthread_exit(NULL);
-        }
-
-        struct sockaddr_in6 gradr = {0};
-        gradr.sin6_family = AF_INET6;
-        gradr.sin6_port = htons(*port_multicast);
-        inet_pton(AF_INET6, multicast_addr, &gradr.sin6_addr);
-        gradr.sin6_scope_id = 0; // L'interface par défaut qui permet le multicast
-
-        server_games->games[game_index].multicast_sock = sock;
-        server_games->games[game_index].gradr = gradr;
-        
-        int player_index = server_games->games[game_index].nb_players;
-        server_games->games[game_index].players[player_index].player_id = player_index;
-        server_games->games[game_index].players[player_index].player_status = CONNECTING;
-        server_games->games[game_index].players[player_index].game_id = game_index;
-        server_games->games[game_index].clients_tcp_sockets[0] = tcp_sock;
-        server_games->games[game_index].nb_players++;
-        pthread_mutex_unlock(&server_games->games[game_index].game_mtx);
-        debug("Unlocked server_games->games[%d] mutex", game_index);
-        debug("Start a new game with id %d and player_id is: %d", game_index, player_index);
-        return player_index;
+        debug("Start a new game with id %d and player_id is: %d", game_index, 0);
+        return 0;
     }
 
     pthread_mutex_unlock(&server_games->sgames_mtx);
@@ -121,7 +124,6 @@ int add_client(ServerGames **sg, game_mode_t mode, uint16_t* port_udp, uint16_t*
 
 char *generate_multicast_addr(char *addr) {
     struct sockaddr_in6 addr_mdiff = {0};
-    char addr_mdiff_str[INET6_ADDRSTRLEN];
 
     memset(addr, 0, sizeof(addr));
 
@@ -281,14 +283,14 @@ void init_players_positions(GameBoard board, player_pos_t *player_positions) {
     }
 }
 
-int process_players_actions(PlayerAction *actions, size_t nb_actions, player_pos_t *player_positions, BombInfo *bomb_infos, Game *game) {
+void process_players_actions(PlayerAction *actions, size_t nb_actions, player_pos_t *player_positions, BombInfo *bomb_infos, Game *game) {
     debug("Appel à la fonction process players action avec nb_actions=%d", nb_actions);
     bool new_bomb_drop[NB_PLAYERS] = {false};
     PlayerAction last_move_action[NB_PLAYERS] = {0};
     PlayerAction bomb_action[NB_PLAYERS] = {0};
     int max_move_num[NB_PLAYERS];
     bool undo_move[NB_PLAYERS] = {false};
-    int ret = -1;
+
     GameBoard *board = &game->game_board;
 
     if(nb_actions > 0) {
@@ -386,23 +388,21 @@ int process_players_actions(PlayerAction *actions, size_t nb_actions, player_pos
 
     for(size_t i = 0; i < NB_PLAYERS; ++i) {
         if(bomb_infos[i].bomb_dropped && bomb_infos[i].explosion_time <= time(NULL)) {
-            ret = handle_explosion(bomb_infos, i, game, player_positions);
+            handle_explosion(bomb_infos, i, game, player_positions);
             bomb_infos[i].bomb_dropped = false;
-            if(ret!=-1) break;
         }
     }
-    //debug_board(*board);
+    debug_board(*board);
     pthread_mutex_unlock(&game->game_mtx);
-    return ret;
 }
 
-int handle_explosion(BombInfo *bomb_infos, size_t bomb_pos, Game * game, player_pos_t *player_positions) {
+
+void handle_explosion(BombInfo *bomb_infos, size_t bomb_pos, Game * game, player_pos_t *player_positions) {
     GameBoard* board = &(game->game_board);
     BombInfo bomb_info = bomb_infos[bomb_pos];
     int i = bomb_info.bomb_x;
     int j = bomb_info.bomb_y;
     board->cells[i][j] = EXPLOSE;
-    int ret = -1;
 
     for (int dx = 0; dx <= 2; dx+=1) {
         int x = i + dx;
@@ -415,35 +415,23 @@ int handle_explosion(BombInfo *bomb_infos, size_t bomb_pos, Game * game, player_
             }
 
             if (board->cells[x][j] == DWALL) {
-                board->cells[x][j] = EMPTY;
+                board->cells[x][j] = EXPLOSE;
                 break;
             }
-            if (dx!=0&&board->cells[x][j] == BOMB){
+            if (board->cells[x][j] == BOMB){
                 debug("recursive explosion");
                 for(size_t c = 0; c < NB_PLAYERS; c += 1){
-                    if(bomb_infos[c].bomb_dropped==true && bomb_infos[c].bomb_x==x&&bomb_infos[c].bomb_y==j){
-                        ret = handle_explosion(bomb_infos,c,game,player_positions);
-                        bomb_infos[c].bomb_dropped == false;
-                        if(ret!=-1) return ret; //si ret!=-1 on a pas besoin de finir le calcul car la game est fini(toujours vrai)
+                    if(bomb_infos[c].bomb_dropped && bomb_infos[c].bomb_x == x && bomb_infos[c].bomb_y == j){
+                        handle_explosion(bomb_infos, c, game, player_positions);
+                        bomb_infos[c].bomb_dropped = false;
                     }
                 }
             }
 
-            if (board->cells[x][j] >= PLAYER1 && board->cells[x][j] <= PLAYER4) {
-                uint8_t player_id = board->cells[x][j] - PLAYER1;
-                // Éliminer le joueur
-                board->cells[x][j] = EMPTY;
-                game->players[player_id].player_status = DEAD;
-                ret = check_game_over(game);
-                if(ret!=-1) return ret;
-            }
-
             for(size_t player = 0; player < NB_PLAYERS; player++) {
                 if(player_positions[player].x == x && player_positions[player].y == j) {
-                    board->cells[x][j] = EMPTY;
+                    board->cells[x][j] = EXPLOSE;
                     game->players[player].player_status = DEAD;
-                    ret = check_game_over(game);
-                    if(ret!=-1) return ret;
                 }
             } 
         }
@@ -460,35 +448,23 @@ int handle_explosion(BombInfo *bomb_infos, size_t bomb_pos, Game * game, player_
             }
 
             if (board->cells[x][j] == DWALL) {
-                board->cells[x][j] = EMPTY;
+                board->cells[x][j] = EXPLOSE;
                 break;
             }
             if (board->cells[x][j] == BOMB){
                 debug("recursive explosion");
                 for(size_t c = 0; c < NB_PLAYERS; c += 1){
-                    if(bomb_infos[c].bomb_dropped==true && bomb_infos[c].bomb_x==x&&bomb_infos[c].bomb_y==j){
-                        ret = handle_explosion(bomb_infos,c,game,player_positions);
-                        bomb_infos[c].bomb_dropped == false;
-                        if(ret!=-1) return ret; //si ret!=-1 on a pas besoin de finir le calcul car la game est fini(toujours vrai)
+                    if(bomb_infos[c].bomb_dropped && bomb_infos[c].bomb_x == x && bomb_infos[c].bomb_y == j){
+                        handle_explosion(bomb_infos, c, game, player_positions);
+                        bomb_infos[c].bomb_dropped = false;
                     }
                 }
-            }
-
-            if (board->cells[x][j] >= PLAYER1 && board->cells[x][j] <= PLAYER4) {
-                // Éliminer le joueur
-                uint8_t player_id = board->cells[x][j] - PLAYER1;
-                board->cells[x][j] = EMPTY;
-                game->players[player_id].player_status = DEAD;
-                ret = check_game_over(game);
-                if(ret!=-1) return ret;
             }
 
             for(size_t player = 0; player < NB_PLAYERS; player++) {
                 if(player_positions[player].x == x && player_positions[player].y == j) {
                     game->players[player].player_status = DEAD;
-                    board->cells[x][j] = EMPTY;
-                    ret = check_game_over(game);
-                    if(ret!=-1) return ret;
+                    board->cells[x][j] = EXPLOSE;
                 }
             }
         }
@@ -505,35 +481,23 @@ int handle_explosion(BombInfo *bomb_infos, size_t bomb_pos, Game * game, player_
             }
 
             if (board->cells[i][y] == DWALL) {
-                board->cells[i][y] = EMPTY;
+                board->cells[i][y] = EXPLOSE;
                 break;
             }
             if (board->cells[i][y] == BOMB){
                 debug("recursive explosion");
                 for(size_t c = 0; c < NB_PLAYERS; c += 1){
-                    if(bomb_infos[c].bomb_dropped==true && bomb_infos[c].bomb_x==i && bomb_infos[c].bomb_y==y){
-                        ret = handle_explosion(bomb_infos,c,game,player_positions);
-                        bomb_infos[c].bomb_dropped == false;
-                        if(ret!=-1) return ret; //si ret!=-1 on a pas besoin de finir le calcul car la game est fini(toujours vrai)
+                    if(bomb_infos[c].bomb_dropped && bomb_infos[c].bomb_x == i && bomb_infos[c].bomb_y == y){
+                        handle_explosion(bomb_infos, c, game, player_positions);
+                        bomb_infos[c].bomb_dropped = false;
                     }
                 }
             }
 
-            if (board->cells[i][y] >= PLAYER1 && board->cells[i][y] <= PLAYER4) {
-                // Éliminer le joueur
-                uint8_t player_id = board->cells[i][y] - PLAYER1;
-                board->cells[i][y] = EMPTY;
-                game->players[player_id].player_status = DEAD;
-                ret = check_game_over(game);
-                if(ret!=-1) return ret;
-            }
-
             for(size_t player = 0; player < NB_PLAYERS; player++) {
                 if(player_positions[player].x == i && player_positions[player].y == y) {
-                    board->cells[i][y] = EMPTY;
+                    board->cells[i][y] = EXPLOSE;
                     game->players[player].player_status = DEAD;
-                    ret = check_game_over(game);
-                    if(ret!=-1) return ret;
                 }
             }
         }
@@ -550,35 +514,23 @@ int handle_explosion(BombInfo *bomb_infos, size_t bomb_pos, Game * game, player_
             }
 
             if (board->cells[i][y] == DWALL) {
-                board->cells[i][y] = EMPTY;
+                board->cells[i][y] = EXPLOSE;
                 break;
             }
             if (board->cells[i][y] == BOMB){
                 debug("recursive explosion");
                 for(size_t c = 0; c < NB_PLAYERS; c += 1){
-                    if(bomb_infos[c].bomb_dropped==true && bomb_infos[c].bomb_x==i&&bomb_infos[c].bomb_y==y){
-                        ret = handle_explosion(bomb_infos,c,game,player_positions);
-                        bomb_infos[c].bomb_dropped == false;
-                        if(ret!=-1) return ret; //si ret!=-1 on a pas besoin de finir le calcul car la game est fini(toujours vrai)
+                    if(bomb_infos[c].bomb_dropped && bomb_infos[c].bomb_x == i && bomb_infos[c].bomb_y == y){
+                        handle_explosion(bomb_infos, c, game, player_positions);
+                        bomb_infos[c].bomb_dropped = false;
                     }
                 }
-            }
-
-            if (board->cells[i][y] >= PLAYER1 && board->cells[i][y] <= PLAYER4) {
-                // Éliminer le joueur
-                uint8_t player_id = board->cells[i][y] - PLAYER1;
-                board->cells[i][y] = EMPTY;
-                game->players[player_id].player_status = DEAD;
-                ret = check_game_over(game);
-                if(ret!=-1) return ret;
             }
 
             for(size_t player = 0; player < NB_PLAYERS; player++) {
                 if(player_positions[player].x == i && player_positions[player].y == y) {
                     game->players[player].player_status = DEAD;
-                    board->cells[i][y] = EMPTY;
-                    ret = check_game_over(game);
-                    if(ret!=-1) return ret;
+                    board->cells[i][y] = EXPLOSE;
                 }
             }
         }
@@ -593,32 +545,23 @@ int handle_explosion(BombInfo *bomb_infos, size_t bomb_pos, Game * game, player_
             int y = j + dy;
 
             if(x >= 0 && x < board->height && y >= 0 && y < board->width) {
+
                 if (board->cells[x][y] == DWALL) {
-                    board->cells[x][y] = EMPTY;
-                } else if (board->cells[x][y] >= PLAYER1 && board->cells[x][y] <= PLAYER4) {
-                    // Éliminer le joueur
-                    uint8_t player_id = board->cells[x][y] - PLAYER1;
-                    board->cells[x][y] = EMPTY;
-                    game->players[player_id].player_status = DEAD;
-                    ret = check_game_over(game);
-                    if(ret!=-1) return ret;
+                    board->cells[x][y] = EXPLOSE;
                 } else if (board->cells[x][y] == BOMB){
-                debug("recursive explosion");
-                for(size_t c = 0; c < NB_PLAYERS; c += 1){
-                    if(bomb_infos[c].bomb_dropped==true && bomb_infos[c].bomb_x==x&&bomb_infos[c].bomb_y==y){
-                        ret = handle_explosion(bomb_infos,c,game,player_positions);
-                        bomb_infos[c].bomb_dropped == false;
-                        if(ret!=-1) return ret; //si ret!=-1 on a pas besoin de finir le calcul car la game est fini(toujours vrai)
+                    debug("recursive explosion");
+                    for(size_t c = 0; c < NB_PLAYERS; c += 1){
+                        if(bomb_infos[c].bomb_dropped && bomb_infos[c].bomb_x == x && bomb_infos[c].bomb_y == y){
+                            handle_explosion(bomb_infos, c, game, player_positions);
+                            bomb_infos[c].bomb_dropped = false;
+                        }
                     }
                 }
-            }
 
                 for(size_t player = 0; player < NB_PLAYERS; player++) {
                     if(player_positions[player].x == x && player_positions[player].y == y) {
                         game->players[player].player_status = DEAD;
-                        board->cells[x][y] = EMPTY;
-                        ret = check_game_over(game);
-                        if(ret!=-1) return ret;
+                        board->cells[x][y] = EXPLOSE;
                     }
                 }
             }

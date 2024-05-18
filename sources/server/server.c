@@ -115,9 +115,23 @@ int main(int argc, char** argv) {
 
                     CReq tcp_rq = {0};
                     if(recv_client_request(client_tcp_socket, &tcp_rq)) {
-                        perror("Erreur recv join request");
-                        close(client_tcp_socket);
-                        continue;
+                        if(!errno) {
+                            log_info("Le client avec la socket tcp %d s'est déconnecté", client_tcp_socket);
+                            close(client_tcp_socket);
+                            size_t sock_index = 0;
+                            for(size_t i = 0; i < fds->size; ++i) {
+                                struct pollfd *pfd = get_from_array(fds, i);
+                                if(pfd->fd == client_tcp_socket) {
+                                    sock_index = i;
+                                    break;
+                                }
+                            }
+                            remove_from_array_at(fds, sock_index);
+                        } else {
+                            perror("Erreur recv join request");
+                            continue;
+                        }
+                        
                     }
                     
 

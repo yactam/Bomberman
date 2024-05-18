@@ -193,8 +193,7 @@ uint8_t recv_client_request(int sockfd, CReq *client_rq) {
         client_rq->req.tchat = ntoh_tchat(&req_buf);
     }
     else {
-        // TODO : continuer l'implementation avec toutes les requetes possibles 
-        log_info("Not yet %d\n", client_rq->type);
+        log_info("Erreur %d\n", client_rq->type);
     }
 
     return 0;

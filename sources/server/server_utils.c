@@ -134,7 +134,7 @@ void* launch_game(void* args) {
             return NULL;
         } else if(ret_poll == 0) {
             // traiter les actions
-            int winner = process_players_actions(players_actions, nb_actions, player_positions, bombs_infos, &game);
+            process_players_actions(players_actions, nb_actions, player_positions, bombs_infos, &game);
             board = game.game_board;
             nb_actions = 0;
             memset(players_actions, 0, sizeof(players_actions));
@@ -161,12 +161,17 @@ void* launch_game(void* args) {
             pthread_mutex_lock(&game.game_mtx);
             clear_bombs_explosions(&game.game_board);
             pthread_mutex_unlock(&game.game_mtx);
+            pthread_mutex_lock(&game.game_mtx);
+            int winner = check_game_over(&game);
+            pthread_mutex_unlock(&game.game_mtx);
+
             if(winner != -1) {
                 debug("CHECK GAME OVER THERE IS A WINNER %d", winner);
-                game.game_status == GAME_OVER;
+                game.game_status = GAME_OVER;
                 SReq end_rq = {0};
                 create_endrq(&end_rq, winner, game.game_mode);
                 send_server_request(game.clients_tcp_sockets, game.nb_players, &end_rq);
+                break;
             }
 
             // multicaster toute la grille si nécessaire
@@ -224,4 +229,5 @@ int get_tcp_sockets(Array *clients_infos, uint16_t game_udp_port, int *res, uint
 int close_server(int sockfd, ServerGames **server_games) {
     close(sockfd);
     free_serverGames(server_games);
+    return 0;
 }
