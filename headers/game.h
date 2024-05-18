@@ -7,9 +7,10 @@
 
 #define MAX_WIDTH 256
 #define MAX_HEIGHT 256
-#define EXPLOSION_DELAY 3
 #define NB_LINES_CHAT 5
 #define MAX_MESS_LENGTH 255
+
+extern int EXPLOSION_DELAY;
 
 typedef enum {
     MODE4,

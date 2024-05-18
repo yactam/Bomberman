@@ -9,11 +9,29 @@
 #include "client/client_utils.h"
 #include "game.h"
 
-#define SERVER_NAME "::1"
-#define TCP_PORT "8888"
+static char* SERVER_NAME = "::1";
+static char* TCP_PORT = "8888";
 #define TIMEOUT -1
 
+void print_usage(const char *prog_name);
+
 int main(int argc, char** argv) {
+    int opt;
+
+    while ((opt = getopt(argc, argv, "h:p:")) != -1) {
+        switch (opt) {
+            case 'h':
+                SERVER_NAME = optarg;
+                break;
+            case 'p':
+                TCP_PORT = optarg;
+                break;
+            default:
+                print_usage(argv[0]);
+                exit(EXIT_FAILURE);
+        }
+    }
+
     int tcp_socket = init_client(TCP_PORT, SERVER_NAME);
 
     if(tcp_socket < 0) {
@@ -246,4 +264,10 @@ int main(int argc, char** argv) {
 
     endwin();
     return 0;
+}
+
+void print_usage(const char *prog_name) {
+    printf("Usage: %s [-h hostname] [-p tcp_port]\n", prog_name);
+    printf("    -h hostname            : The server hostname (default: ::1)\n");
+    printf("    -p tcp_port            : The tcp port where the server is listening (default: 8888)\n");
 }

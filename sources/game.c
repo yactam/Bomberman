@@ -3,6 +3,7 @@
 
 WINDOW *game_window;
 WINDOW *chat_window;
+int EXPLOSION_DELAY = 3;
 
 int init_board(char *filename, GameBoard *board) {
     FILE *file = fopen(filename, "r");

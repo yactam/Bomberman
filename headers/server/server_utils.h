@@ -4,8 +4,9 @@
 #include "games_handler.h"
 #include "data_structures.h"
 
-#define TCP_PORT 8888
-#define TIMEOUT_MS 10000
+extern int TCP_PORT;
+extern int FREQ;
+extern int ALL_FREQ;
 
 int init_server(uint16_t port, ServerGames**);
 void* recv_datas(void* args);

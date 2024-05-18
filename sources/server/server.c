@@ -6,26 +6,46 @@
 #include "server/server_requests.h"
 #include "server/server_utils.h"
 #include "debug.h"
+#include "game.h"
 #include "socket_utils.h"
 #include "data_structures.h"
 
 #define TIMEOUT 1000
-#define CLIENT_TIMEOUT 10000
+#define CLIENT_TIMEOUT 5000
+
+void print_usage(const char *prog_name);
 
 int main(int argc, char** argv) {
+
+    int opt;
+
+    while ((opt = getopt(argc, argv, "p:b:f:m:")) != -1) {
+        switch (opt) {
+            case 'b':
+                EXPLOSION_DELAY = atoi(optarg);
+                break;
+            case 'f':
+                FREQ = atoi(optarg);
+                break;
+            case 'm':
+                ALL_FREQ = atoi(optarg);
+                break;
+            case 'p':
+                TCP_PORT = atoi(optarg);
+                break;
+            default:
+                print_usage(argv[0]);
+                exit(EXIT_FAILURE);
+        }
+    }
+
+    debug("EXPLOSION DELAY = %d, FREQ = %d, TCP_PORT = %d", EXPLOSION_DELAY, FREQ, TCP_PORT);
+
     pthread_t games_supervisor;
     ServerGames *server_games;
     int tcp_socket = init_server(TCP_PORT, &server_games);
 
     if(tcp_socket < 0) {
-        exit(EXIT_FAILURE);
-    }
-
-   int flags = set_non_blocking(tcp_socket);
-
-    if(flags < 0) {
-        perror("Setting non-blocking failed");
-        close(tcp_socket);
         exit(EXIT_FAILURE);
     }
 
@@ -193,4 +213,12 @@ int main(int argc, char** argv) {
     close_server(tcp_socket, &server_games);
     free_array(fds);
     free_array(clients_infos);
+}
+
+void print_usage(const char *prog_name) {
+    printf("Usage: %s [-p port_tcp] [-b bomb_timer] [-m multicast_frequency] [-f request_frequency]\n", prog_name);
+    printf("    -p port_tcp             : The tcp_port where the server will listen to connection (default: 8888)\n");
+    printf("    -b bomb_timer           : Time between bomb drop and explosion in seconds (default: 3)\n");
+    printf("    -f multicast_frequency  : Frequency of multicast of the complete grid in seconds (default: 1)\n");
+    printf("    -r request_frequency    : Frequency of request processing and differential multicast in milliseconds (default: 10)\n");
 }

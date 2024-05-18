@@ -11,6 +11,8 @@
 
 int init_client(char *port_tcp, char *hostname) {
 
+    debug("PORT = %s, HOSTNAME = %s", port_tcp, hostname);
+
     struct addrinfo hints, *r, *p;
     memset(&hints, 0, sizeof(struct addrinfo));
     hints.ai_family = AF_INET6;

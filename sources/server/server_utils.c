@@ -12,7 +12,9 @@
 #include "debug.h"
 #include "data_structures.h"
 
-#define FREQ 10
+int TCP_PORT = 8888;
+int FREQ = 10;
+int ALL_FREQ = 1000;
 
 int init_server(uint16_t port, ServerGames **server_games) {
     int tcp_socket;
@@ -176,7 +178,7 @@ void* launch_game(void* args) {
 
             // multicaster toute la grille si nécessaire
             elapsed_time++;
-            if(elapsed_time * FREQ >= 1000) {
+            if(elapsed_time * FREQ >= ALL_FREQ) {
                 SReq grid_rq = {0};
                 pthread_mutex_lock(&game.game_mtx);
                 create_multicastrq(&grid_rq, board, num++);
