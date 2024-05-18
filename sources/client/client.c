@@ -229,9 +229,9 @@ int main(int argc, char** argv) {
                     uint8_t winner = (type == SGAMEOVER_MODE4) ? get_id(server_rq.req.end.header) : get_eq(server_rq.req.end.header);
                     endwin();
                     if(type == SGAMEOVER_MODE4) {
-                        printf("Le joueur %d a gagné\n", winner);
+                        printf("Le joueur %d a gagné\n", winner + 1);
                     } else {
-                        printf("L'équipe %d a gagné\n", winner);
+                        printf("L'équipe %d a gagné\n", winner + 1);
                     }
                     exit(EXIT_SUCCESS);
                 }

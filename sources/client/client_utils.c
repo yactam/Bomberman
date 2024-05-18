@@ -80,32 +80,44 @@ int subscribe_multicast(uint16_t port_multicast, char* adr_multicast) {
 }
 
 UDP_Infos *init_udp_connection(uint16_t port_udp) {
-    int sockfd;
+    struct addrinfo hints, *r, *p;
+    int sockfd = -1;
 
-    if ((sockfd = socket(AF_INET6, SOCK_DGRAM, 0)) < 0) {
-        perror("Erreur while creating UDP socket");
+    memset(&hints, 0, sizeof(struct addrinfo));
+    hints.ai_family = AF_INET6;
+    hints.ai_socktype = SOCK_DGRAM;
+    hints.ai_flags = AI_V4MAPPED | AI_ALL;
+
+    char port[8] = {0};
+    sprintf(port, "%d", port_udp);
+
+    int status = getaddrinfo(NULL, port, &hints, &r);
+    if (status != 0) {
+        dprintf(STDERR_FILENO, "getaddrinfo error: %s\n", gai_strerror(status));
         return NULL;
     }
 
-    struct sockaddr_in6 serv_addr;
-    memset(&serv_addr, 0, sizeof(serv_addr));
-    serv_addr.sin6_family = AF_INET6;
-    serv_addr.sin6_port = htons(port_udp);
-    serv_addr.sin6_addr = in6addr_any;
-    serv_addr.sin6_scope_id = 0;
+	for (p = r; p != NULL; p = p->ai_next) {
+        if ((sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1) {
+            perror("socket");
+            continue;
+        }
 
-    int ok = 1;
-	if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &ok, sizeof(ok)) < 0) {
-		perror("echec de SO_REUSEADDR");
-		close(sockfd);
+        break;
+    }
+
+
+    if (p == NULL) {
+		dprintf(STDERR_FILENO, "connection failed\n");
+		freeaddrinfo(r);
 		return NULL;
 	}
 
-    if (bind(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
-        perror("Erreur while binding socket with the server adresse");
-        close(sockfd);
-        return NULL;
-    }
+    struct sockaddr_in6 serv_addr;
+    memset(&serv_addr, 0, sizeof(serv_addr));
+    serv_addr = *((struct sockaddr_in6 *) p->ai_addr);
+
+    freeaddrinfo(r);
 
     debug("La connexion UDP IPv6 sur le port %d a été initialisée avec succès.", port_udp);
     UDP_Infos *udp_infos = malloc(sizeof(UDP_Infos));
@@ -124,8 +136,4 @@ UDP_Infos *init_udp_connection(uint16_t port_udp) {
 void clearMessage(Message *msg) {
     memset(msg->data, 0, sizeof(msg->data));
     msg->length = 0;
-}
-void freeMessage(Message* msg){
-    free(msg->data);
-    free(msg);
 }
