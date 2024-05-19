@@ -24,6 +24,27 @@ murs destructibles et les joueurs qui se trouvent à proximité. Pour une case C
 
 ## Usage
 
+**Créer une CA locale et signer la CSR**
+(pour une CA privée)
+
+- Créer la clé privée de la CA
+
+```bash
+openssl genpkey -algorithm RSA -out ca_private_key.pem -pkeyopt rsa_keygen_bits:2048
+```
+
+- Créer un certificat auto-signé pour la CA
+
+```bash
+openssl req -x509 -new -nodes -key ca_private_key.pem -sha256 -days 3650 -out ca_certificate.pem
+```
+
+- Signer la CSR avec la CA
+
+```bash
+openssl x509 -req -in request.csr -CA ca_certificate.pem -CAkey ca_private_key.pem -CAcreateserial -out certificate.pem -days 365 -sha256
+```
+
 **Compilation**
 Pour compiler le projet, il suffit d'entrer la commande suivante :
 
