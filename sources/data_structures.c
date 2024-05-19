@@ -1,8 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "data_structures.h"
-#include "debug.h"
+#include "../headers/data_structures.h"
+#include "../headers/debug.h"
 
 Array *create_array(size_t data_size) {
     Array *array = malloc(sizeof(Array));
