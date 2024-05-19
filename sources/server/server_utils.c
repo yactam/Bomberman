@@ -201,7 +201,7 @@ void* launch_game(void* args) {
 
             debug_creq(&ongame_rq);
             PlayerAction player_action;
-            player_action.paleyr_id = get_id(ongame_rq.req.play.header);
+            player_action.player_id = get_id(ongame_rq.req.play.header);
             player_action.num = get_num(ongame_rq.req.play.message);
             player_action.action = get_action(ongame_rq.req.play.message);
 

@@ -308,7 +308,7 @@ void process_players_actions(PlayerAction *actions, size_t nb_actions, player_po
 
         for (size_t i = 0; i < nb_actions; ++i) {
             PlayerAction action = actions[i];
-            player_id = action.paleyr_id;
+            player_id = action.player_id;
 
             log_info("player_id = %d", player_id);
 
