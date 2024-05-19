@@ -210,7 +210,7 @@ ssize_t recv_client_request(int sockfd, CReq *client_rq) {
         log_info("Erreur %d\n", client_rq->type);
     }
 
-    return 0;
+    return 2;
 }
 
 ssize_t send_tcp(int sockfd, const void *buf, size_t len) {

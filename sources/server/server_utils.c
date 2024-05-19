@@ -18,7 +18,7 @@ int ALL_FREQ = 1000;
 
 int init_server(uint16_t port, ServerGames **server_games) {
     int tcp_socket;
-    struct sockaddr_in6 server_tcp;
+    struct sockaddr_in6 server_tcp = {0};
     init_serverGames(server_games);
 
     tcp_socket = socket(PF_INET6, SOCK_STREAM, 0);

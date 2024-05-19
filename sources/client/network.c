@@ -294,7 +294,7 @@ uint8_t recv_server_datagram(int sockfd, SReq *server_rq, size_t max_recv) {
     } else if(server_rq->type == SDIFF_CASES) {
         server_rq->req.cell = ntoh_cell(&buf_recv);
     } else {
-        log_error("Erreur %d\n", type);
+        log_error("Erreur %d\n", server_rq->type);
     }
 
     return 0;

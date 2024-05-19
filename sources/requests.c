@@ -144,6 +144,11 @@ void debug_stchatrq(SReq_Tchat *tchat_rq) {
     debug("DATA : %s", tchat_rq->data);
 }
 
+void debug_send(SReq_End *end_rq) {
+    debug("**** SERVER GAMEOVER REQUEST ****");
+    debug_header(end_rq->header);
+}
+
 void debug_creq(CReq *client_rq) {
     debug("CReq type is %d", client_rq->type);
     if(client_rq->type == CREQ_MODE4 || client_rq->type == CREQ_TEAMS || client_rq->type == CCONF_MODE4 || client_rq->type == CCONF_TEAMS) {
@@ -165,6 +170,8 @@ void debug_sreq(SReq *server_rq) {
         debug_scasesrq(&server_rq->req.cell);
     } else if(server_rq->type == SALL_CHAT || server_rq->type == SCOP_CHAT) {
         debug_stchatrq(&server_rq->req.tchat);
+    } else if(server_rq->type == SGAMEOVER_MODE4 || server_rq->type == SGAMEOVER_TEAMS) {
+        debug_send(&server_rq->req.end);
     } else {
         log_error("NOT YET %d", server_rq->type);
     }

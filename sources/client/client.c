@@ -51,7 +51,7 @@ int main(int argc, char** argv) {
     debug("Client Join request sent");
 
     SReq start_rq = {0};
-    if(recv_server_request(tcp_socket, &start_rq)) {
+    if(recv_server_request(tcp_socket, &start_rq) < 0) {
         perror("Erreur recv client start request");
         close(tcp_socket);
         exit(EXIT_FAILURE);
@@ -221,7 +221,7 @@ int main(int argc, char** argv) {
             } else if(fds[2].revents & POLLIN) {
                 debug("Il ya des données tcp à recevoir");
                 SReq server_rq = {0};
-                if(recv_server_request(tcp_socket, &server_rq)) {
+                if(recv_server_request(tcp_socket, &server_rq) < 0) {
                     perror("Erreur recv client start request");
                     close(tcp_socket);
                     exit(EXIT_FAILURE);

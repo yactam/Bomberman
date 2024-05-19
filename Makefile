@@ -1,6 +1,7 @@
 CC            := gcc
 LDLIBS        := -pthread -lncurses
 CFLAGS        := -Iheaders -DNDEBUG
+VFLAGS		  := --track-fds=yes
 
 BIN           := bin
 OBJ           := obj
