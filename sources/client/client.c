@@ -32,6 +32,7 @@ int main(int argc, char** argv) {
         }
     }
 
+    init_openSSL();
     int tcp_socket = init_client(TCP_PORT, SERVER_NAME);
 
     if(tcp_socket < 0) {
@@ -39,10 +40,18 @@ int main(int argc, char** argv) {
         exit(EXIT_FAILURE);
     }
 
+    SSL_CTX *ctx = create_context();
+    SSL *ssl = init_tls_connection(tcp_socket, SERVER_NAME, ctx);
+
+    if(ssl == NULL) {
+        perror("Erreur lors de l'initialisation de la connexion tls");
+        exit(EXIT_FAILURE);
+    }
+
     CReq join_req = {0};
     create_integrationrq(&join_req);
     debug_creq(&join_req);
-    if(send_client_request(tcp_socket, &join_req)) {
+    if(send_client_request_tls(ssl, &join_req)) {
         perror("Erreur send client join request");
         close(tcp_socket);
         exit(EXIT_FAILURE);
@@ -51,10 +60,13 @@ int main(int argc, char** argv) {
     debug("Client Join request sent");
 
     SReq start_rq = {0};
-    if(recv_server_request(tcp_socket, &start_rq)) {
+    int ret = recv_server_request_tls(ssl, &start_rq);
+    if(ret < 0) {
         perror("Erreur recv client start request");
         close(tcp_socket);
         exit(EXIT_FAILURE);
+    } else if(ret == 0) {
+        log_info("Le serveur est hors ligne");
     }
 
     debug_sreq(&start_rq);
@@ -87,7 +99,7 @@ int main(int argc, char** argv) {
     create_confrq(&conf_rq, gametype, id_player, id_team);
     debug_creq(&conf_rq);
 
-    if(send_client_request(tcp_socket, &conf_rq)) {
+    if(send_client_request_tls(ssl, &conf_rq)) {
         perror("Erreur send client confirmation request");
         close(tcp_socket);
         exit(EXIT_FAILURE);
@@ -212,7 +224,7 @@ int main(int argc, char** argv) {
                     debug_creq(&client_req);
                     if(client_req.type == CALL_CHAT || client_req.type == CCOP_CHAT) {
                         debug("Envoyer une requete TCHAT");
-                        send_client_request(tcp_socket, &client_req);
+                        send_client_request_tls(ssl, &client_req);
                     } else {
                         send_datagram(sock_udp, server_addr, &client_req);
                     }
@@ -221,11 +233,15 @@ int main(int argc, char** argv) {
             } else if(fds[2].revents & POLLIN) {
                 debug("Il ya des données tcp à recevoir");
                 SReq server_rq = {0};
-                if(recv_server_request(tcp_socket, &server_rq)) {
-                    perror("Erreur recv client start request");
+                if(recv_server_request_tls(ssl, &server_rq) < 0) {
                     close(tcp_socket);
+                    endwin();
+                    perror("Erreur recv client start request");
+                    debug("RECV FAILED");
                     exit(EXIT_FAILURE);
                 }
+
+                debug("RECV SUCCEDED");
                 debug_sreq(&server_rq);
 
                 if(server_rq.type == SALL_CHAT || server_rq.type == SCOP_CHAT) {
@@ -255,7 +271,7 @@ int main(int argc, char** argv) {
                     } else {
                         printf("L'équipe %d a gagné\n", winner + 1);
                     }
-                    close(tcp_socket);
+                    end_ssl_connection(ssl, tcp_socket, ctx);
                     close(sock_multicast);
                     exit(EXIT_SUCCESS);
                 }

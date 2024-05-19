@@ -1,5 +1,5 @@
 CC            := gcc
-LDLIBS        := -pthread -lncurses
+LDLIBS        := -pthread -lncurses -lssl -lcrypto
 CFLAGS        := -Iheaders -DNDEBUG
 
 BIN           := bin

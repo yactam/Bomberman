@@ -295,3 +295,188 @@ uint8_t recv_client_datagrams(int sfd, CReq *client_rq) {
 
     return 0;     
 }
+
+void init_openSSL() {
+    SSL_library_init();
+    OpenSSL_add_all_algorithms();
+    SSL_load_error_strings();
+}
+
+SSL_CTX* create_context() {
+    const SSL_METHOD *method;
+    SSL_CTX *ctx;
+
+    method = TLS_server_method();
+    ctx = SSL_CTX_new(method);
+    if (!ctx) {
+        perror("Unable to create SSL context");
+        ERR_print_errors_fp(stderr);
+        exit(EXIT_FAILURE);
+    }
+
+    if(!SSL_CTX_use_certificate_file(ctx, "ca_certificate.pem", SSL_FILETYPE_PEM) || !SSL_CTX_use_PrivateKey_file(ctx, "ca_private_key.pem", SSL_FILETYPE_PEM)) {
+        perror("Unable to use certificate and private key");
+        exit(EXIT_FAILURE);
+    }
+
+    return ctx;
+}
+
+SSL* init_tls_connection(int sockfd, SSL_CTX *ctx) {
+    SSL *ssl = SSL_new(ctx);
+    SSL_set_fd(ssl, sockfd);
+
+    if (SSL_accept(ssl) <= 0) {
+        ERR_print_errors_fp(stderr);
+        SSL_free(ssl);
+        return NULL;
+    }
+
+    return ssl;
+}
+
+SSL* accept_ssl_connection(SSL_CTX *ctx, int client_fd) {
+    SSL *ssl = SSL_new(ctx);
+    SSL_set_fd(ssl, client_fd);
+
+    if (SSL_accept(ssl) <= 0) {
+        ERR_print_errors_fp(stderr);
+        close(client_fd);
+        SSL_free(ssl);
+        return NULL;
+    }
+
+    return ssl;
+}
+
+ssize_t send_tls(SSL *ssl, const void *buf, size_t len) {
+    ssize_t total_sent = 0;
+    while (total_sent < len) {
+        ssize_t sent = SSL_write(ssl, (const char *)buf + total_sent, len - total_sent);
+        if (sent <= 0) {
+            int error = SSL_get_error(ssl, sent);
+            if (error == SSL_ERROR_ZERO_RETURN || error == SSL_ERROR_SYSCALL) {
+                perror("Connection closed by the peer");
+                return -1;
+            } else {
+                ERR_print_errors_fp(stderr);
+                return -1;
+            }
+        }
+        total_sent += sent;
+    }
+    return total_sent;
+}
+
+uint8_t send_server_request_tls(SSL **ssls, size_t nb_socks, SReq *server_rq) {
+    Buf_t bytes_rq;
+    uint16_t type = server_rq->type;
+
+    if (type == SREQ_MODE4 || type == SREQ_TEAMS) {
+        bytes_rq = hton_startrq(&server_rq->req.start);
+    } else if (type == SALL_CHAT || type == SCOP_CHAT) {
+        bytes_rq = hton_chatrq(&server_rq->req.tchat);
+    } else if (type == SGAMEOVER_MODE4 || type == SGAMEOVER_TEAMS) {
+        bytes_rq = hton_endrq(&server_rq->req.end);
+    }
+
+    for (size_t i = 0; i < nb_socks; ++i) {
+        SSL *ssl = ssls[i];
+        if (ssl != NULL) {
+            debug("Send server request of type %d to SSL connection %zu", type, i);
+            if(send_tls(ssl, bytes_rq.content, bytes_rq.size) < 0) {
+                log_error("Erreur send server request start");
+                return 1;
+            }
+        }
+    }
+
+    return 0;
+}
+
+
+ssize_t recv_tls(SSL *ssl, Buf_t *buf, size_t len) {
+    initbuf(buf);
+
+    ssize_t total_received = 0;
+    while (total_received < len) {
+        ssize_t received = SSL_read(ssl, buf->content + total_received, len - total_received);
+        if (received < 0) {
+            int error = SSL_get_error(ssl, received);
+            if (error == SSL_ERROR_ZERO_RETURN || error == SSL_ERROR_SYSCALL) {
+                perror("Connection closed by the peer");
+                return -1;
+            } else {
+                ERR_print_errors_fp(stderr);
+                return -1;
+            }
+        }
+        total_received += received;
+        debug("%ld octect reçue, au total: %ld, à recevoir: %ld", received, total_received, len);
+        if(received == 0) {
+            log_info("Le client s'est déconnecté");
+            return 0;
+        }
+    }
+
+    buf->size += total_received;
+    return total_received;
+}
+
+ssize_t recv_client_request_tls(SSL* ssl, CReq *client_rq) {
+    Buf_t req_buf;
+
+    int ret = recv_tls(ssl, &req_buf, sizeof(Header_t));
+    if(ret < 0) {
+        return -1;
+    } else if(ret == 0) {
+        return 0;
+    }
+
+    Header_t header;
+    size_t start = 0;
+    copyfrombuf(&req_buf, &start, sizeof(header), &header);
+    client_rq->type = get_codereq(ntohs(header));
+
+    debug("Received client request of type %d", client_rq->type);
+
+    if(client_rq->type == CREQ_MODE4 || client_rq->type == CREQ_TEAMS || client_rq->type == CCONF_MODE4 || client_rq->type == CCONF_TEAMS) {
+        client_rq->req.join = ntoh_integrationrq(&req_buf);
+    } else if(client_rq->type == CALL_CHAT || client_rq->type == CCOP_CHAT){
+        Buf_t tchat_buf;
+        size_t tchat_start = 0;
+        u_int8_t len;
+
+        ret = recv_tls(ssl, &tchat_buf, sizeof(uint8_t));
+        if(ret < 0) {
+            return -1;
+        } else if(ret == 0) {
+            return 0;
+        }
+        appendbuf(&req_buf, tchat_buf.content, ret);
+        copyfrombuf(&tchat_buf, &tchat_start, sizeof(uint8_t), &len);
+
+        ret = recv_tls(ssl, &tchat_buf, len);
+        if(ret < 0) {
+            return -1;
+        } else if(ret == 0) {
+            return 0;
+        }
+        appendbuf(&req_buf, &tchat_buf.content, ret);
+
+        client_rq->req.tchat = ntoh_tchat(&req_buf);
+    }
+    else {
+        log_info("Erreur %d\n", client_rq->type);
+        return -1;
+    }
+
+    return 1;
+}
+
+void end_ssl_connection(SSL *ssl, int sockfd, SSL_CTX *ctx) {
+    SSL_shutdown(ssl);
+    close(sockfd);
+    SSL_free(ssl);
+    SSL_CTX_free(ctx);
+}

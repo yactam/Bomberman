@@ -31,7 +31,7 @@ void free_serverGames(ServerGames **server_games) {
     free(sg);
 }
 
-int add_player_to_game(Game *game, int tcp_sock) {
+int add_player_to_game(Game *game, int tcp_sock, SSL *ssl) {
     int player_id = -1;
     for (size_t j = 0; j < NB_PLAYERS; ++j) {
         if (game->players[j].player_status == DISCONNECTED) {
@@ -40,6 +40,7 @@ int add_player_to_game(Game *game, int tcp_sock) {
             game->players[j].player_id = player_id;
             game->players[j].game_id = game->game_id;
             game->clients_tcp_sockets[game->nb_players] = tcp_sock;
+            game->ssl[game->nb_players] = ssl;
             game->nb_players++;
             break;
         }
@@ -47,7 +48,7 @@ int add_player_to_game(Game *game, int tcp_sock) {
     return player_id;
 }
 
-void initialize_new_game(Game *game, game_mode_t mode, uint16_t *port_udp, uint16_t *port_multicast, char *addr_mdiff, int tcp_sock) {
+void initialize_new_game(Game *game, game_mode_t mode, uint16_t *port_udp, uint16_t *port_multicast, char *addr_mdiff, int tcp_sock, SSL *ssl) {
     game->game_mode = mode;
     game->nb_players = 0;
     pthread_mutex_init(&game->game_mtx, NULL);
@@ -72,10 +73,10 @@ void initialize_new_game(Game *game, game_mode_t mode, uint16_t *port_udp, uint1
     game->multicast_sock = sock;
     game->gradr = gradr;
 
-    add_player_to_game(game, tcp_sock);
+    add_player_to_game(game, tcp_sock, ssl);
 }
 
-int add_client(ServerGames **sg, game_mode_t mode, uint16_t* port_udp, uint16_t* port_multicast, char* addr_mdiff, int tcp_sock) {
+int add_client(ServerGames **sg, game_mode_t mode, uint16_t* port_udp, uint16_t* port_multicast, char* addr_mdiff, int tcp_sock, SSL *ssl) {
     ServerGames *server_games = *sg;
     if (server_games == NULL) {
         log_error("server_games est NULL");
@@ -92,7 +93,7 @@ int add_client(ServerGames **sg, game_mode_t mode, uint16_t* port_udp, uint16_t*
             pthread_mutex_unlock(&server_games->sgames_mtx);
             debug("Unlocked server_games mutex");
 
-            int player_id = add_player_to_game(&server_games->games[i], tcp_sock);
+            int player_id = add_player_to_game(&server_games->games[i], tcp_sock, ssl);
             if (player_id != -1) {
                 *port_udp = server_games->games[i].port_udp;
                 *port_multicast = server_games->games[i].port_multicast;
@@ -109,7 +110,7 @@ int add_client(ServerGames **sg, game_mode_t mode, uint16_t* port_udp, uint16_t*
     if (server_games->nb_games < MAX_GAMES) {
         int game_index = server_games->nb_games;
         server_games->games[game_index].game_id = game_index;
-        initialize_new_game(&server_games->games[game_index], mode, port_udp, port_multicast, addr_mdiff, tcp_sock);
+        initialize_new_game(&server_games->games[game_index], mode, port_udp, port_multicast, addr_mdiff, tcp_sock, ssl);
         server_games->nb_games++;
         pthread_mutex_unlock(&server_games->sgames_mtx);
         debug("Unlocked server_games mutex");

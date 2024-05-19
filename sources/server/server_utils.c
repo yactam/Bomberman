@@ -172,7 +172,7 @@ void* launch_game(void* args) {
                 game.game_status = GAME_OVER;
                 SReq end_rq = {0};
                 create_endrq(&end_rq, winner, game.game_mode);
-                send_server_request(game.clients_tcp_sockets, game.nb_players, &end_rq);
+                send_server_request_tls(game.ssl, game.nb_players, &end_rq);
                 break;
             }
 
@@ -222,6 +222,22 @@ int get_tcp_sockets(Array *clients_infos, uint16_t game_udp_port, int *res, uint
                 res[next_index++] = ci->client_tcp_sock;
             else if(ci->client_id % 2 == id_team)
                 res[next_index++] = ci->client_tcp_sock;
+        }
+    }
+
+    return next_index;
+}
+
+int get_ssls(Array *clients_infos, uint16_t game_udp_port, SSL **res, uint16_t codereq, uint8_t id_team) {
+    size_t next_index = 0;
+
+    for(size_t i = 0; i < clients_infos->size; ++i) {
+        Client_Infos *ci = get_from_array(clients_infos, i);
+        if(ci->game_udp_port == game_udp_port) {
+            if(codereq == CALL_CHAT)
+                res[next_index++] = ci->ssl;
+            else if(ci->client_id % 2 == id_team)
+                res[next_index++] = ci->ssl;
         }
     }
 

@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <openssl/ssl.h>
 
 #define MAX_DATA 255
 #define MAX_BUFSIZE 4069
@@ -181,6 +182,7 @@ typedef struct {
 	time_t last_activity;
 	uint16_t game_udp_port;
 	player_status_t status;
+	SSL *ssl;
 } Client_Infos;
 
 void initbuf(Buf_t *buffer);

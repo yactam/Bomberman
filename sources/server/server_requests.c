@@ -8,11 +8,11 @@
 #include "server/games_handler.h"
 #include "game.h"
 
-int create_regestartionrq(ServerGames **server_games, SReq *serverrq, CReq_Join *clientrq, int tcp_sock) {
+int create_regestartionrq(ServerGames **server_games, SReq *serverrq, CReq_Join *clientrq, int tcp_sock, SSL *ssl) {
     game_mode_t mode = (get_codereq(clientrq->header) == CREQ_MODE4) ? MODE4 : TEAMS;
     uint16_t portudp, portmulticast;
     char multicast_addr[16] = {0};
-    int player_id = add_client(server_games, mode, &portudp, &portmulticast, multicast_addr, tcp_sock);
+    int player_id = add_client(server_games, mode, &portudp, &portmulticast, multicast_addr, tcp_sock, ssl);
     if(player_id < 0) {
         log_error("Server is busy :\\ please try later.");
         return 1;

@@ -275,7 +275,7 @@ uint8_t recv_server_datagram(int sockfd, SReq *server_rq, size_t max_recv) {
     } else if(server_rq->type == SDIFF_CASES) {
         server_rq->req.cell = ntoh_cell(&buf_recv);
     } else {
-        log_error("Erreur %d\n", type);
+        log_error("Erreur %d\n", server_rq->type);
     }
 
     return 0;
@@ -299,3 +299,180 @@ uint8_t send_datagram(int sfd, struct sockaddr_in6 serv_addr, CReq *client_rq) {
     }
     return 0;
 }
+
+void init_openSSL() {
+    SSL_library_init();
+    OpenSSL_add_all_algorithms();
+    SSL_load_error_strings();
+}
+
+SSL_CTX* create_context() {
+    const SSL_METHOD *method;
+    SSL_CTX *ctx;
+
+    method = TLS_client_method();
+    ctx = SSL_CTX_new(method);
+    if (!ctx) {
+        perror("Unable to create SSL context");
+        ERR_print_errors_fp(stderr);
+        exit(EXIT_FAILURE);
+    }
+
+    return ctx;
+}
+
+SSL* init_tls_connection(int sockfd, char *hostname, SSL_CTX *ctx) {
+    SSL *ssl = SSL_new(ctx);
+    if(!SSL_set_tlsext_host_name(ssl, hostname)) return NULL;
+    SSL_set_fd(ssl, sockfd);
+
+    if (SSL_connect(ssl) <= 0) {
+        ERR_print_errors_fp(stderr);
+        SSL_free(ssl);
+        return NULL;
+    }
+
+    return ssl;
+}
+
+ssize_t send_tls(SSL *ssl, const void *buf, size_t len) {
+    ssize_t total_sent = 0;
+    while (total_sent < len) {
+        ssize_t sent = SSL_write(ssl, (const char *)buf + total_sent, len - total_sent);
+        if (sent <= 0) {
+            int error = SSL_get_error(ssl, sent);
+            if (error == SSL_ERROR_ZERO_RETURN || error == SSL_ERROR_SYSCALL) {
+                perror("Connection closed by the peer");
+                return -1;
+            } else {
+                ERR_print_errors_fp(stderr);
+                return -1;
+            }
+        }
+        total_sent += sent;
+    }
+    return total_sent;
+}
+
+ssize_t recv_tls(SSL *ssl, Buf_t *buf, size_t len) {
+
+    initbuf(buf);
+
+    ssize_t total_received = 0;
+    while (total_received < len) {
+        ssize_t received = SSL_read(ssl, buf->content + total_received, len - total_received);
+        if (received < 0) {
+            int error = SSL_get_error(ssl, received);
+            if (error == SSL_ERROR_ZERO_RETURN || error == SSL_ERROR_SYSCALL) {
+                perror("Connection closed by the peer");
+                return -1;
+            } else {
+                ERR_print_errors_fp(stderr);
+                return -1;
+            }
+        }
+        total_received += received;
+        debug("%ld octect reçue, au total: %ld, à recevoir: %ld", received, total_received, len);
+        if(received == 0) {
+            log_info("Le serveur s'est déconnecté");
+            return 0;
+        }
+    }
+
+    buf->size += total_received;
+    return total_received;
+}
+
+uint8_t send_client_request_tls(SSL *ssl, CReq *client_rq) {
+    Buf_t bytes_rq;
+    initbuf(&bytes_rq);
+
+    debug("The type of the request to send is %d", client_rq->type);
+
+    if(client_rq->type == CREQ_MODE4 || client_rq->type == CREQ_TEAMS || client_rq->type == CCONF_MODE4 || client_rq->type == CCONF_TEAMS) {
+        bytes_rq = hton_integrationrq(&client_rq->req.join);
+    } else if(client_rq->type == CALL_CHAT || client_rq->type == CCOP_CHAT){
+        bytes_rq = hton_tchat(&client_rq->req.tchat);
+    }
+    else{
+        log_error("Type de requête non reconnu %d", client_rq->type);
+        return 1;
+    }
+
+    if(send_tls(ssl, bytes_rq.content, bytes_rq.size) < 0) {
+        return 1;
+    }
+
+    return 0;
+}
+
+ssize_t recv_server_request_tls(SSL *ssl, SReq *server_rq) {
+    Buf_t buf_recv;
+
+    int ret = recv_tls(ssl, &buf_recv, sizeof(Header_t));
+    if(ret < 0) {
+        return -1;
+    } else if(ret == 0) {
+        return 0;
+    } 
+
+    Header_t header;
+    size_t start = 0;
+    copyfrombuf(&buf_recv, &start, sizeof(header), &header);
+    server_rq->type = get_codereq(ntohs(header));
+
+    debug("The type of the received request is %d", server_rq->type);
+
+    if(server_rq->type == SREQ_MODE4 || server_rq->type == SREQ_TEAMS) {
+        Buf_t start_rq;
+        ret = recv_tls(ssl, &start_rq, sizeof(SReq_Start) - sizeof(Header_t));
+        if(ret < 0) {
+            return -1;
+        } else if(ret == 0) {
+            return 0;
+        }
+        debug("La taille : %ld", start_rq.size);
+        appendbuf(&buf_recv, start_rq.content, start_rq.size);
+        server_rq->req.start = ntoh_start(&buf_recv);
+
+    } else if(server_rq->type == SALL_CHAT || server_rq->type == SCOP_CHAT) {
+        Buf_t tchat_buf;
+        size_t tchat_start = 0;
+        u_int8_t len;
+
+        ret = recv_tls(ssl, &tchat_buf, sizeof(uint8_t));
+        if(ret < 0) {
+            return -1;
+        } else if(ret == 0) {
+            return 0;
+        }
+        appendbuf(&buf_recv, tchat_buf.content, ret);
+        copyfrombuf(&tchat_buf, &tchat_start, sizeof(uint8_t), &len);
+
+        ret = recv_tls(ssl, &tchat_buf, len);
+        if(ret < 0) {
+            return -1;
+        } else if(ret == 0) {
+            return 0;
+        }
+        appendbuf(&buf_recv, &tchat_buf.content, ret);
+
+        server_rq->req.tchat = ntoh_tchat(&buf_recv);
+    } else if(server_rq->type == SGAMEOVER_MODE4 || server_rq->type == SGAMEOVER_TEAMS) {
+        server_rq->req.end = ntoh_end(&buf_recv);
+    } else {
+        log_error("Type de requête non reconnu %d", server_rq->type);
+        return -1;
+    }
+
+    return 1;
+}
+
+void end_ssl_connection(SSL *ssl, int sockfd, SSL_CTX *ctx) {
+    SSL_shutdown(ssl);
+    close(sockfd);
+    SSL_free(ssl);
+    SSL_CTX_free(ctx);
+}
+
+

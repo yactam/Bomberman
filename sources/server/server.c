@@ -49,6 +49,9 @@ int main(int argc, char** argv) {
         exit(EXIT_FAILURE);
     }
 
+    init_openSSL();
+    SSL_CTX *ctx = create_context();
+
     if (pthread_create(&games_supervisor, NULL, games_supervisor_handler, (void*)&server_games) != 0) {
         perror("Erreur lors de la création du thread de gestion du démarrage des parties");
         close(tcp_socket);
@@ -109,6 +112,8 @@ int main(int argc, char** argv) {
                         continue;
                     }
 
+                    SSL *ssl = init_tls_connection(client_tcp_socket, ctx);
+
                     log_info("Le client c'est bien connecté client_tcp_socket = %d", client_tcp_socket);
 
                     struct pollfd poll_fd = {0};
@@ -119,6 +124,7 @@ int main(int argc, char** argv) {
                     Client_Infos ci = {0};
                     ci.client_tcp_sock = client_tcp_socket;
                     ci.status = CONNECTING;
+                    ci.ssl = ssl;
                     ci.last_activity = time(NULL);
                     append_to_array(clients_infos, &ci);
 
@@ -130,28 +136,28 @@ int main(int argc, char** argv) {
                         Client_Infos *ci = get_from_array(clients_infos, j);
                         if(ci->client_tcp_sock == client_tcp_socket) {
                             client_infos = ci;
+                            break;
                         }
                     }
 
                     CReq tcp_rq = {0};
-                    if(recv_client_request(client_tcp_socket, &tcp_rq)) {
-                        if(!errno) {
-                            log_info("Le client avec la socket tcp %d s'est déconnecté", client_tcp_socket);
-                            close(client_tcp_socket);
-                            size_t sock_index = 0;
-                            for(size_t i = 0; i < fds->size; ++i) {
-                                struct pollfd *pfd = get_from_array(fds, i);
-                                if(pfd->fd == client_tcp_socket) {
-                                    sock_index = i;
-                                    break;
-                                }
+                    int ret = recv_client_request_tls(client_infos->ssl, &tcp_rq);
+                    if(ret < 0) {
+                        perror("Erreur recv join request");
+                        continue;
+                    } else if(ret == 0) {
+                        log_info("Le client avec la socket tcp %d s'est déconnecté", client_tcp_socket);
+                        close(client_tcp_socket);
+                        size_t sock_index = 0;
+                        for(size_t i = 0; i < fds->size; ++i) {
+                            struct pollfd *pfd = get_from_array(fds, i);
+                            if(pfd->fd == client_tcp_socket) {
+                                sock_index = i;
+                                break;
                             }
-                            remove_from_array_at(fds, sock_index);
-                        } else {
-                            perror("Erreur recv join request");
-                            continue;
                         }
-                        
+                        remove_from_array_at(fds, sock_index);
+                        continue;
                     }
                     
 
@@ -161,14 +167,14 @@ int main(int argc, char** argv) {
 
                     if(codereq == CREQ_MODE4 || codereq == CREQ_TEAMS) {
                         SReq start_rq = {0};
-                        if(create_regestartionrq(&server_games, &start_rq, &tcp_rq.req.join, client_tcp_socket)) {
+                        if(create_regestartionrq(&server_games, &start_rq, &tcp_rq.req.join, client_tcp_socket, client_infos->ssl)) {
                             perror("Mode inconnue");
                             continue;
                         }
 
                         debug_sreq(&start_rq);
 
-                        if(send_server_request(&client_tcp_socket, 1, &start_rq)) {
+                        if(send_server_request_tls(&client_infos->ssl, 1, &start_rq)) {
                             perror("Erreur send request");
                             close(client_tcp_socket);
                             remove_client(&server_games, start_rq.req.start.portudp, get_id(start_rq.req.start.header));
@@ -190,14 +196,21 @@ int main(int argc, char** argv) {
                         debug_sreq(&tchat_rq);
 
                         int sock_fds[NB_PLAYERS] = {0};
+                        SSL *ssls[NB_PLAYERS] = {0};
                         int id_team = get_eq(tchat_rq.req.tchat.header);
                         int nb_socks = get_tcp_sockets(clients_infos, client_infos->game_udp_port, sock_fds, codereq, id_team);
+                        int nb_ssls = get_ssls(clients_infos, client_infos->game_udp_port, ssls, codereq, id_team);
                         if(nb_socks < 0) {
                             perror("Erreur get tcp sockets");
                             continue;
                         }
 
-                        if(send_server_request(sock_fds, nb_socks, &tchat_rq)) {
+                        if(nb_ssls < 0) {
+                            perror("Erreur get ssls");
+                            continue;
+                        }
+
+                        if(send_server_request_tls(ssls, nb_ssls, &tchat_rq)) {
                             perror("Erreur send tchat request");
                             continue;
                         }
