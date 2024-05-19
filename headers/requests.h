@@ -34,7 +34,7 @@
 #define SGAMEOVER_MODE4 15
 #define SGAMEOVER_TEAMS 16
 
-#define CODEREQ_MASK 0xFFF
+#define CODEREQ_MASK 0x1FFF
 #define MESSAGE_MASK 0x1FFF
 #define ID_MASK 0x3
 #define EQ_MASK 0x1

@@ -239,9 +239,14 @@ void* games_supervisor_handler(void* arg) {
                 server_games->games[i].game_status = ON_GOING;
                 pthread_create(&server_games->games[i].game_thread, NULL, launch_game, (void*) &server_games->games[i]);
             } else if(server_games->games[i].game_status == GAME_OVER) {
+                pthread_mutex_unlock(&server_games->games[i].game_mtx);
                 debug("La partie %d est terminée", server_games->games[i].game_id);
                 pthread_join(server_games->games[i].game_thread, NULL);
-                // TODO Réinitialiser la partie pour qu'elle soit prête à etre utilisé aprés
+                pthread_cond_destroy(&server_games->games[i].game_cond);
+                pthread_mutex_destroy(&server_games->games[i].game_mtx);
+                memset(&server_games->games[i], 0, sizeof(Game));
+                server_games->nb_games--;
+                continue;
             }
 
             pthread_mutex_unlock(&server_games->games[i].game_mtx);
@@ -418,7 +423,7 @@ void handle_explosion(BombInfo *bomb_infos, size_t bomb_pos, Game * game, player
                 board->cells[x][j] = EXPLOSE;
                 break;
             }
-            if (board->cells[x][j] == BOMB){
+            if (board->cells[x][j] == BOMB) {
                 debug("recursive explosion");
                 for(size_t c = 0; c < NB_PLAYERS; c += 1){
                     if(bomb_infos[c].bomb_dropped && bomb_infos[c].bomb_x == x && bomb_infos[c].bomb_y == j){
@@ -426,6 +431,9 @@ void handle_explosion(BombInfo *bomb_infos, size_t bomb_pos, Game * game, player
                         bomb_infos[c].bomb_dropped = false;
                     }
                 }
+            }
+            if(board->cells[x][j] == EMPTY) {
+                board->cells[x][j] = EXPLOSE;
             }
 
             for(size_t player = 0; player < NB_PLAYERS; player++) {
@@ -460,6 +468,9 @@ void handle_explosion(BombInfo *bomb_infos, size_t bomb_pos, Game * game, player
                     }
                 }
             }
+            if(board->cells[x][j] == EMPTY) {
+                board->cells[x][j] = EXPLOSE;
+            }
 
             for(size_t player = 0; player < NB_PLAYERS; player++) {
                 if(player_positions[player].x == x && player_positions[player].y == j) {
@@ -492,6 +503,9 @@ void handle_explosion(BombInfo *bomb_infos, size_t bomb_pos, Game * game, player
                         bomb_infos[c].bomb_dropped = false;
                     }
                 }
+            }
+            if(board->cells[i][y] == EMPTY) {
+                board->cells[i][y] = EXPLOSE;
             }
 
             for(size_t player = 0; player < NB_PLAYERS; player++) {
@@ -526,6 +540,9 @@ void handle_explosion(BombInfo *bomb_infos, size_t bomb_pos, Game * game, player
                     }
                 }
             }
+            if(board->cells[i][y] == EMPTY) {
+                board->cells[i][y] = EXPLOSE;
+            }
 
             for(size_t player = 0; player < NB_PLAYERS; player++) {
                 if(player_positions[player].x == i && player_positions[player].y == y) {
@@ -556,6 +573,8 @@ void handle_explosion(BombInfo *bomb_infos, size_t bomb_pos, Game * game, player
                             bomb_infos[c].bomb_dropped = false;
                         }
                     }
+                } else if(board->cells[x][y] == EMPTY) {
+                    board->cells[x][y] = EXPLOSE;
                 }
 
                 for(size_t player = 0; player < NB_PLAYERS; player++) {

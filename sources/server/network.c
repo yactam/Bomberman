@@ -199,6 +199,26 @@ uint8_t recv_client_request(int sockfd, CReq *client_rq) {
     return 0;
 }
 
+ssize_t send_tcp(int sockfd, const void *buf, size_t len) {
+    ssize_t total_sent = 0;
+    while (total_sent < len) {
+        ssize_t sent = send(sockfd, (const char *)buf + total_sent, len - total_sent, 0);
+        if (sent == -1) {
+            if (errno == EPIPE || errno == ECONNRESET) {
+                perror("Connection closed by the peer");
+                return -1;
+            } else if (errno == EINTR) {
+                continue;
+            } else {
+                perror("send");
+                return -1;
+            }
+        }
+        total_sent += sent;
+    }
+    return total_sent;
+}
+
 uint8_t send_server_request(int *sockfds, size_t nb_socks, SReq *server_rq) {
     Buf_t bytes_rq;
     uint16_t type = server_rq->type;
@@ -215,7 +235,7 @@ uint8_t send_server_request(int *sockfds, size_t nb_socks, SReq *server_rq) {
         int sfd = sockfds[i];
         if(sfd != 0) {
             debug("Send server request of type %d to %d", type, sfd);
-            if(send(sfd, bytes_rq.content, bytes_rq.size, 0) < 0) {
+            if(send_tcp(sfd, bytes_rq.content, bytes_rq.size) < 0) {
                 perror("Erreur send server request start");
                 return 1;
             }
@@ -246,8 +266,7 @@ uint8_t send_datagram(int sfd, struct sockaddr_in6 gradr, SReq *server_rq) {
             return 1;
         }
     } else {
-        // TODO : À implementer avec toutes les autres requêtes
-        log_info("Not yet %d\n", type);
+        log_error("Datagram inconnu %d\n", type);
     }
     return 0;
 }

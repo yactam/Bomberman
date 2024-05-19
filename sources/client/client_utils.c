@@ -81,7 +81,7 @@ int subscribe_multicast(uint16_t port_multicast, char* adr_multicast) {
     return sock_multicast;
 }
 
-UDP_Infos *init_udp_connection(uint16_t port_udp) {
+UDP_Infos *init_udp_connection(char* hostname, uint16_t port_udp) {
     struct addrinfo hints, *r, *p;
     int sockfd = -1;
 
@@ -93,7 +93,7 @@ UDP_Infos *init_udp_connection(uint16_t port_udp) {
     char port[8] = {0};
     sprintf(port, "%d", port_udp);
 
-    int status = getaddrinfo(NULL, port, &hints, &r);
+    int status = getaddrinfo(hostname, port, &hints, &r);
     if (status != 0) {
         dprintf(STDERR_FILENO, "getaddrinfo error: %s\n", gai_strerror(status));
         return NULL;

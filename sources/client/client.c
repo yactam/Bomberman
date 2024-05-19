@@ -73,7 +73,7 @@ int main(int argc, char** argv) {
         exit(EXIT_FAILURE);
     }
 
-    UDP_Infos *udp_infos = init_udp_connection(port_udp); // pour envoyer les actions au serveur
+    UDP_Infos *udp_infos = init_udp_connection(SERVER_NAME, port_udp); // pour envoyer les actions au serveur
     if (!udp_infos) {
         perror("Erreur while initialising the udp connection with the client");
         exit(EXIT_FAILURE);
@@ -182,12 +182,16 @@ int main(int argc, char** argv) {
                         }
                         break;
                     case '*':
-                        create_chatrq(&client_req, id_player, id_team, &tchat, CALL_CHAT);
-                        clearMessage(&tchat);
+                        if(tchat.length > 0) {
+                            create_chatrq(&client_req, id_player, id_team, &tchat, CALL_CHAT);
+                            clearMessage(&tchat);
+                        }
                         break;
                     case '#':
-                        create_chatrq(&client_req, id_player, id_team, &tchat, gametype == MODE4 ? CALL_CHAT : CCOP_CHAT);
-                        clearMessage(&tchat);
+                        if(tchat.length > 0) {
+                            create_chatrq(&client_req, id_player, id_team, &tchat, gametype == MODE4 ? CALL_CHAT : CCOP_CHAT);
+                            clearMessage(&tchat);
+                        }
                         break;
                     default:
                         if(tchat.is_sent) {
@@ -251,6 +255,8 @@ int main(int argc, char** argv) {
                     } else {
                         printf("L'équipe %d a gagné\n", winner + 1);
                     }
+                    close(tcp_socket);
+                    close(sock_multicast);
                     exit(EXIT_SUCCESS);
                 }
             }

@@ -142,6 +142,26 @@ SReq_End ntoh_end(Buf_t *buf_rq){
     return endrq;
 }
 
+ssize_t send_tcp(int sockfd, const void *buf, size_t len) {
+    ssize_t total_sent = 0;
+    while (total_sent < len) {
+        ssize_t sent = send(sockfd, (const char *)buf + total_sent, len - total_sent, 0);
+        if (sent == -1) {
+            if (errno == EPIPE || errno == ECONNRESET) {
+                perror("Connection closed by the peer");
+                return -1;
+            } else if (errno == EINTR) {
+                continue;
+            } else {
+                perror("send");
+                return -1;
+            }
+        }
+        total_sent += sent;
+    }
+    return total_sent;
+}
+
 uint8_t send_client_request(int sockfd, CReq *client_rq) {
     Buf_t bytes_rq;
     initbuf(&bytes_rq);
@@ -154,11 +174,11 @@ uint8_t send_client_request(int sockfd, CReq *client_rq) {
         bytes_rq = hton_tchat(&client_rq->req.tchat);
     }
     else{
-        // TODO : à implementer
-        printf("send_client_request TODO\n");
+        log_error("Type de requête non reconnu %d", client_rq->type);
+        return 1;
     }
 
-    if(send(sockfd, bytes_rq.content, bytes_rq.size, 0) < 0) {
+    if(send_tcp(sockfd, bytes_rq.content, bytes_rq.size) < 0) {
         return 1;
     }
 
@@ -207,7 +227,6 @@ uint8_t recv_server_request(int sockfd, SReq *server_rq) {
         recv_tcp(sockfd, sizeof(SReq_Start) - sizeof(Header_t), &start_rq);
         debug("La taille : %ld", sizeof(start_rq.content));
         appendbuf(&buf_recv, start_rq.content, start_rq.size);
-        debug("Le buffer de la requete fait %d octects: %ld", sizeof(buf_recv));
         server_rq->req.start = ntoh_start(&buf_recv);
 
     } else if(server_rq->type == SALL_CHAT || server_rq->type == SCOP_CHAT) {
@@ -256,8 +275,7 @@ uint8_t recv_server_datagram(int sockfd, SReq *server_rq, size_t max_recv) {
     } else if(server_rq->type == SDIFF_CASES) {
         server_rq->req.cell = ntoh_cell(&buf_recv);
     } else {
-        // TODO
-        printf("recv_server_udp_request TODO\n");
+        log_error("Erreur %d\n", type);
     }
 
     return 0;
@@ -277,8 +295,7 @@ uint8_t send_datagram(int sfd, struct sockaddr_in6 serv_addr, CReq *client_rq) {
             return 1;
         }
     } else {
-        // TODO : À implementer avec toutes les autres requêtes
-        log_info("Not yet %d\n", type);
+        log_error("Erreur %d\n", type);
     }
     return 0;
 }

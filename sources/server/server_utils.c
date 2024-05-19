@@ -13,7 +13,7 @@
 #include "data_structures.h"
 
 int TCP_PORT = 8888;
-int FREQ = 10;
+int FREQ = 100;
 int ALL_FREQ = 1000;
 
 int init_server(uint16_t port, ServerGames **server_games) {
