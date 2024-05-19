@@ -185,7 +185,7 @@ uint8_t send_client_request(int sockfd, CReq *client_rq) {
     return 0;
 }
 
-Buf_t* recv_tcp(int sockfd, size_t sto_recv, Buf_t *req_buf){
+ssize_t recv_tcp(int sockfd, size_t sto_recv, Buf_t *req_buf){
     
     initbuf(req_buf);
 
@@ -194,26 +194,30 @@ Buf_t* recv_tcp(int sockfd, size_t sto_recv, Buf_t *req_buf){
         int rec = recv(sockfd, req_buf->content + read, sto_recv - read, 0);
         if(rec < 0) {
             perror("Erreur recv");
-            return NULL;
+            return -1;
         }
         read += rec;
         debug("%d octect reçue, au total: %d, à recevoir: %d", rec, read, sto_recv);
         if(rec == 0) {
             log_info("Le client s'est déconnecté");
-            return NULL;
+            return 0;
         }
     }
 
     req_buf->size += read;
-    return req_buf;
+    return read;
 }
 
 
-uint8_t recv_server_request(int sockfd, SReq *server_rq) {
+ssize_t recv_server_request(int sockfd, SReq *server_rq) {
     Buf_t buf_recv;
 
-    if(recv_tcp(sockfd, sizeof(Header_t), &buf_recv) == NULL)
-        return 1;
+    ssize_t ret = recv_tcp(sockfd, sizeof(Header_t), &buf_recv);
+    if(ret < 0) {
+        return -1;
+    } else if(ret == 0) {
+        return 0;
+    }
 
     Header_t header;
     size_t start = 0;
@@ -224,7 +228,12 @@ uint8_t recv_server_request(int sockfd, SReq *server_rq) {
 
     if(server_rq->type == SREQ_MODE4 || server_rq->type == SREQ_TEAMS) {
         Buf_t start_rq;
-        recv_tcp(sockfd, sizeof(SReq_Start) - sizeof(Header_t), &start_rq);
+        ret = recv_tcp(sockfd, sizeof(SReq_Start) - sizeof(Header_t), &start_rq);
+        if(ret < 0) {
+            return -1;
+        } else if(ret == 0) {
+            return 0;
+        }
         debug("La taille : %ld", sizeof(start_rq.content));
         appendbuf(&buf_recv, start_rq.content, start_rq.size);
         server_rq->req.start = ntoh_start(&buf_recv);
@@ -234,12 +243,22 @@ uint8_t recv_server_request(int sockfd, SReq *server_rq) {
         size_t tchat_start = 0;
         u_int8_t len;
 
-        recv_tcp(sockfd, sizeof(uint8_t), &tchat_buf);
-        appendbuf(&buf_recv, tchat_buf.content, sizeof(uint8_t));
+        ret = recv_tcp(sockfd, sizeof(uint8_t), &tchat_buf);
+        if(ret < 0) {
+            return -1;
+        } else if(ret == 0) {
+            return 0;
+        }
+        appendbuf(&buf_recv, tchat_buf.content, ret);
         copyfrombuf(&tchat_buf, &tchat_start, sizeof(uint8_t), &len);
 
-        recv_tcp(sockfd, len, &tchat_buf);
-        appendbuf(&buf_recv, &tchat_buf.content, len);
+        ret = recv_tcp(sockfd, len, &tchat_buf);
+        if(ret < 0) {
+            return -1;
+        } else if(ret == 0) {
+            return 0;
+        }
+        appendbuf(&buf_recv, &tchat_buf.content, ret);
 
         server_rq->req.tchat = ntoh_tchat(&buf_recv);
     } else if(server_rq->type == SGAMEOVER_MODE4 || server_rq->type == SGAMEOVER_TEAMS) {

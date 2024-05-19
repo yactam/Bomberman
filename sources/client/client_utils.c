@@ -52,7 +52,7 @@ int subscribe_multicast(uint16_t port_multicast, char* adr_multicast) {
 
     if(sock_multicast < 0) {
         perror("socket creation failed");
-        return 1;
+        return -1;
     }
 
     struct sockaddr_in6 multicast_addr;
