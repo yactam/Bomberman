@@ -58,6 +58,7 @@ clean:
 help:
 	@echo "Usage:"
 	@echo "    make [all]          Compilation du client et du serveur"
+	@echo "    make debug          Compilation du client et du serveur en mode debug"
 	@echo "    make client         Compilation du client"
 	@echo "    make server         Compilation du serveur"
 	@echo "    make clean          Supprime les .o et les executable"
