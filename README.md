@@ -37,13 +37,13 @@ Aprés avoir compilé le projet, il suffit de lancer la commande :
 Pour lancer le serveur
 
 ```bash
-./server
+./server [-p port_tcp] [-b bomb_timer] [-m multicast_frequency] [-f request_frequency]
 ```
 
 Pour lancer le client
 
 ```bash
-./client
+./client [-h hostname] [-p tcp_port]
 ```
 
 ## Auteurs
