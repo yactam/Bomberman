@@ -3,6 +3,16 @@
 
 #include <stdint.h>
 
+/**
+ * @file input.h
+ * @brief Functions for handling user input.
+ */
+
+/**
+ * @brief Prompts the user to input the game type.
+ * 
+ * @return uint8_t The selected game type.
+ */
 uint8_t input_game_type();
 
-#endif
+#endif /* __INPUT_H__ */
