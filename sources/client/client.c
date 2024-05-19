@@ -237,11 +237,9 @@ int main(int argc, char** argv) {
                     close(tcp_socket);
                     endwin();
                     perror("Erreur recv client start request");
-                    debug("RECV FAILED");
                     exit(EXIT_FAILURE);
                 }
 
-                debug("RECV SUCCEDED");
                 debug_sreq(&server_rq);
 
                 if(server_rq.type == SALL_CHAT || server_rq.type == SCOP_CHAT) {
