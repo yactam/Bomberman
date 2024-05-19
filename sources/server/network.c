@@ -251,7 +251,7 @@ uint8_t send_server_request(int *sockfds, size_t nb_socks, SReq *server_rq) {
             debug("Send server request of type %d to %d", type, sfd);
             if(send_tcp(sfd, bytes_rq.content, bytes_rq.size) < 0) {
                 perror("Erreur send server request start");
-                return 1;
+                continue;
             }
         }
     }
@@ -400,7 +400,7 @@ uint8_t send_server_request_tls(SSL **ssls, size_t nb_socks, SReq *server_rq) {
             debug("Send server request of type %d to SSL connection %zu", type, i);
             if(send_tls(ssl, bytes_rq.content, bytes_rq.size) < 0) {
                 log_error("Erreur send server request start");
-                return 1;
+                continue;
             }
         }
     }
