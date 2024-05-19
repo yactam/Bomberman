@@ -11,6 +11,7 @@ Le but de ce projet est d’implémenter un serveur et un client pour un jeu en 
 - [Auteurs](#auteurs)
 
 ## Description du jeu
+
 Une partie de Bomberman se joue à quatre joueurs sur une grille. La grille comporte des cases
 libres sur lesquelles les joueurs peuvent se déplacer et des murs infranchissables. Chaque joueur
 peut à tout moment poser une bombe sur une case libre et se déplacer dans une des quatre
@@ -24,19 +25,27 @@ murs destructibles et les joueurs qui se trouvent à proximité. Pour une case C
 ## Usage
 
 **Compilation**
-
 Pour compiler le projet, il suffit d'entrer la commande suivante :
 
+```bash
+make
 ```
-On verra
-```
-**Exécution**
 
+**Exécution**
 Aprés avoir compilé le projet, il suffit de lancer la commande :
+
+Pour lancer le serveur
+
+```bash
+./server [-p port_tcp] [-b bomb_timer] [-m multicast_frequency] [-f request_frequency]
 ```
-On verra
+
+Pour lancer le client
+
+```bash
+./client [-h hostname] [-p tcp_port]
 ```
 
 ## Auteurs
-- Voir le fichier: [AUTHORS.md](AUTHORS.md)
 
+- Voir le fichier: [AUTHORS.md](AUTHORS.md)
